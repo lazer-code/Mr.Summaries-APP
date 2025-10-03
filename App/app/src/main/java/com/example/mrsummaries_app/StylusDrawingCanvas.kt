@@ -1,9 +1,13 @@
+@file:OptIn(ExperimentalComposeUiApi::class)
+
 package com.example.mrsummaries_app
 
+import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -13,16 +17,20 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 
 enum class DrawingTool { WRITE, ERASE }
 
 /**
- * StylusDrawingCanvas now exposes an onCurrentPathChange lambda that is called
- * continuously as the stylus moves. This allows the host (e.g. MainActivity)
- * to update and draw the in-progress stroke immediately instead of waiting
- * for the stylus to be lifted.
+ * StylusDrawingCanvas detects the SPen primary button using MotionEvent.buttonState
+ * (via pointerInteropFilter). It calls onStylusButtonChange(true/false) when the
+ * stylus primary button is pressed/released (or when move events show the bit).
+ *
+ * The composable itself is agnostic about whether erase is temporary (while the
+ * stylus button is held) or persistent (toggled by UI). The host (MainActivity)
+ * decides that by combining the stylus button state and a UI toggle.
  */
 @Composable
 fun StylusDrawingCanvas(
@@ -30,14 +38,33 @@ fun StylusDrawingCanvas(
     drawingTool: DrawingTool,
     paths: List<List<Offset>>,
     currentPath: List<Offset>,
-    onCurrentPathChange: (List<Offset>) -> Unit, // new callback for live updates
+    onCurrentPathChange: (List<Offset>) -> Unit,
     onPathAdded: (List<Offset>) -> Unit,
-    onErasePath: (Int) -> Unit
+    onErasePath: (Int) -> Unit,
+    onStylusButtonChange: (Boolean) -> Unit = {}
 ) {
     Canvas(
         modifier = modifier
             .background(Color.White)
-            .fillMaxSize()
+            // listen to MotionEvent button changes to detect the SPen primary button
+            .pointerInteropFilter { ev ->
+                when (ev.actionMasked) {
+                    MotionEvent.ACTION_BUTTON_PRESS -> {
+                        onStylusButtonChange(true)
+                        false
+                    }
+                    MotionEvent.ACTION_BUTTON_RELEASE -> {
+                        onStylusButtonChange(false)
+                        false
+                    }
+                    else -> {
+                        // keep state in sync during moves using the buttonState bitmask
+                        val isPressed = (ev.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY) != 0
+                        onStylusButtonChange(isPressed)
+                        false
+                    }
+                }
+            }
             .pointerInput(drawingTool, paths) {
                 while (true) {
                     awaitPointerEventScope {
@@ -45,21 +72,16 @@ fun StylusDrawingCanvas(
                         val stylusDown = event.changes.firstOrNull { it.type == PointerType.Stylus && it.pressed }
                         if (stylusDown != null) {
                             var tempPath = listOf(stylusDown.position)
-                            // Immediately report the initial position so an initial dot/segment appears
                             onCurrentPathChange(tempPath)
 
                             while (true) {
                                 val dragEvent = awaitPointerEvent(PointerEventPass.Initial)
                                 val dragPointer = dragEvent.changes.find { it.id == stylusDown.id }
-                                if (dragPointer == null || !dragPointer.pressed) {
-                                    // pointer released -> exit drag loop
-                                    break
-                                }
+                                if (dragPointer == null || !dragPointer.pressed) break
+
                                 tempPath = tempPath + dragPointer.position
-                                // report updates continuously so the UI can draw the in-progress stroke
                                 onCurrentPathChange(tempPath)
 
-                                // If erasing, check if the current point is near an existing path
                                 if (drawingTool == DrawingTool.ERASE) {
                                     val eraseIndex = paths.indexOfFirst { path ->
                                         path.any { p -> (p - dragPointer.position).getDistance() < 40f }
@@ -71,59 +93,43 @@ fun StylusDrawingCanvas(
                                 }
                             }
 
-                            // pointer lifted (or erase broke out)
-                            if (drawingTool == DrawingTool.WRITE && tempPath.size > 0) {
-                                // Add the final path (if any). Use >0 so single taps can be added too.
+                            if (drawingTool == DrawingTool.WRITE && tempPath.isNotEmpty()) {
                                 onPathAdded(tempPath)
                             }
-                            // Clear the live path
                             onCurrentPathChange(emptyList())
                         }
                     }
                 }
             }
     ) {
-        // Draw all stored paths
+        // draw stored paths
         for (pathPoints in paths) {
             if (pathPoints.size > 1) {
                 val path = Path().apply {
                     moveTo(pathPoints[0].x, pathPoints[0].y)
-                    for (point in pathPoints.drop(1)) {
-                        lineTo(point.x, point.y)
-                    }
+                    for (point in pathPoints.drop(1)) lineTo(point.x, point.y)
                 }
                 drawPath(
                     path = path,
                     color = Color.Blue,
-                    style = Stroke(
-                        width = 6.dp.toPx(),
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round
-                    )
+                    style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
             } else if (pathPoints.size == 1) {
-                // draw a small point for single-tap strokes
                 val p = pathPoints[0]
                 drawCircle(Color.Blue, radius = 3.dp.toPx(), center = p)
             }
         }
 
-        // Draw the current (in-progress) path
+        // draw current in-progress path
         if (currentPath.size > 1) {
             val path = Path().apply {
                 moveTo(currentPath[0].x, currentPath[0].y)
-                for (point in currentPath.drop(1)) {
-                    lineTo(point.x, point.y)
-                }
+                for (point in currentPath.drop(1)) lineTo(point.x, point.y)
             }
             drawPath(
                 path = path,
                 color = if (drawingTool == DrawingTool.WRITE) Color.Blue else Color.Red,
-                style = Stroke(
-                    width = 6.dp.toPx(),
-                    cap = StrokeCap.Round,
-                    join = StrokeJoin.Round
-                )
+                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
             )
         } else if (currentPath.size == 1) {
             val p = currentPath[0]

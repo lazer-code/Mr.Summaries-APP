@@ -32,7 +32,14 @@ fun DrawingScreen() {
     var paths by remember { mutableStateOf<List<List<Offset>>>(emptyList()) }
     var currentPath by remember { mutableStateOf<List<Offset>>(emptyList()) }
     var undonePaths by remember { mutableStateOf<List<List<Offset>>>(emptyList()) }
-    var drawingTool by remember { mutableStateOf(DrawingTool.WRITE) }
+
+    // persistent on-screen Erase toggle
+    var eraseToggled by remember { mutableStateOf(false) }
+    // SPen physical button state reported by StylusDrawingCanvas
+    var spenPressed by remember { mutableStateOf(false) }
+
+    // effective tool: ERASE while SPen pressed or when erase toggled
+    val drawingTool = if (spenPressed || eraseToggled) DrawingTool.ERASE else DrawingTool.WRITE
 
     Box(modifier = Modifier.fillMaxSize()) {
         StylusDrawingCanvas(
@@ -40,9 +47,8 @@ fun DrawingScreen() {
             drawingTool = drawingTool,
             paths = paths,
             currentPath = currentPath,
-            onCurrentPathChange = { currentPath = it }, // receive live updates
+            onCurrentPathChange = { currentPath = it },
             onPathAdded = { path ->
-                // explicit generic to prevent widening to Any
                 paths = paths + listOf<List<Offset>>(path)
                 undonePaths = emptyList()
                 currentPath = emptyList()
@@ -52,14 +58,27 @@ fun DrawingScreen() {
                     undonePaths = undonePaths + listOf<List<Offset>>(paths[index])
                     paths = paths.toMutableList().apply { removeAt(index) }
                 }
+            },
+            onStylusButtonChange = { pressed ->
+                spenPressed = pressed
             }
         )
+
         HoverBar(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 24.dp),
             drawingTool = drawingTool,
-            onToolChange = { drawingTool = it },
+            // Explicitly annotate the lambda parameter type to avoid "Cannot infer type" errors
+            onToolChange = { tool: DrawingTool ->
+                if (tool == DrawingTool.ERASE) {
+                    // toggle persistent erase when user taps on-screen Erase button
+                    eraseToggled = !eraseToggled
+                } else {
+                    // Write button clears persistent erase
+                    eraseToggled = false
+                }
+            },
             onUndo = {
                 if (paths.isNotEmpty()) {
                     undonePaths = undonePaths + listOf<List<Offset>>(paths.last())
