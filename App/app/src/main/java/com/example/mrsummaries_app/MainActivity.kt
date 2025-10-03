@@ -40,6 +40,7 @@ fun DrawingScreen() {
             drawingTool = drawingTool,
             paths = paths,
             currentPath = currentPath,
+            onCurrentPathChange = { currentPath = it }, // receive live updates
             onPathAdded = { path ->
                 // explicit generic to prevent widening to Any
                 paths = paths + listOf<List<Offset>>(path)
