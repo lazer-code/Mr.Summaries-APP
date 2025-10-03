@@ -7,11 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Undo
-import androidx.compose.material.icons.filled.Redo
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,8 +27,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class DrawingTool { WRITE, ERASE }
-
 @Composable
 fun DrawingScreen() {
     var paths by remember { mutableStateOf<List<List<Offset>>>(emptyList()) }
@@ -48,13 +41,14 @@ fun DrawingScreen() {
             paths = paths,
             currentPath = currentPath,
             onPathAdded = { path ->
-                paths = paths + listOf(path)
+                // explicit generic to prevent widening to Any
+                paths = paths + listOf<List<Offset>>(path)
                 undonePaths = emptyList()
                 currentPath = emptyList()
             },
             onErasePath = { index ->
                 if (index in paths.indices) {
-                    undonePaths = undonePaths + paths[index]
+                    undonePaths = undonePaths + listOf<List<Offset>>(paths[index])
                     paths = paths.toMutableList().apply { removeAt(index) }
                 }
             }
@@ -67,13 +61,13 @@ fun DrawingScreen() {
             onToolChange = { drawingTool = it },
             onUndo = {
                 if (paths.isNotEmpty()) {
-                    undonePaths = undonePaths + paths.last()
+                    undonePaths = undonePaths + listOf<List<Offset>>(paths.last())
                     paths = paths.dropLast(1)
                 }
             },
             onRedo = {
                 if (undonePaths.isNotEmpty()) {
-                    paths = paths + undonePaths.last()
+                    paths = paths + listOf<List<Offset>>(undonePaths.last())
                     undonePaths = undonePaths.dropLast(1)
                 }
             }
@@ -99,27 +93,21 @@ fun HoverBar(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
+        Button(
             onClick = { onToolChange(DrawingTool.WRITE) },
-            colors = IconButtonDefaults.iconButtonColors(
+            colors = ButtonDefaults.buttonColors(
                 containerColor = if (drawingTool == DrawingTool.WRITE) Color.LightGray else Color.Transparent
             )
-        ) {
-            Icon(Icons.Filled.Create, contentDescription = "Write")
-        }
-        IconButton(
+        ) { Text("Write") }
+
+        Button(
             onClick = { onToolChange(DrawingTool.ERASE) },
-            colors = IconButtonDefaults.iconButtonColors(
+            colors = ButtonDefaults.buttonColors(
                 containerColor = if (drawingTool == DrawingTool.ERASE) Color.LightGray else Color.Transparent
             )
-        ) {
-            Icon(Icons.Filled.Delete, contentDescription = "Erase")
-        }
-        IconButton(onClick = onUndo) {
-            Icon(Icons.Filled.Undo, contentDescription = "Undo")
-        }
-        IconButton(onClick = onRedo) {
-            Icon(Icons.Filled.Redo, contentDescription = "Redo")
-        }
+        ) { Text("Erase") }
+
+        Button(onClick = onUndo) { Text("Undo") }
+        Button(onClick = onRedo) { Text("Redo") }
     }
 }
