@@ -24,6 +24,8 @@ enum class DrawingTool { WRITE, ERASE }
 
 /**
  * StylusDrawingCanvas detects SPen button, tracks hover position, and renders tip indicators.
+ * Updated: writing is constrained to canvas bounds. Leaving the bounds ends the current stroke.
+ * Re-entering starts a new stroke.
  */
 @Composable
 fun StylusDrawingCanvas(
@@ -56,17 +58,13 @@ fun StylusDrawingCanvas(
                     MotionEvent.ACTION_HOVER_EXIT,
                     MotionEvent.ACTION_CANCEL -> {
                         hoverPosition = null
-                        val isPressed = (ev.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY) != 0
-                        onStylusButtonChange(isPressed)
                         false
                     }
                     MotionEvent.ACTION_BUTTON_PRESS -> {
-                        onStylusButtonChange(true)
-                        false
+                        onStylusButtonChange(true); false
                     }
                     MotionEvent.ACTION_BUTTON_RELEASE -> {
-                        onStylusButtonChange(false)
-                        false
+                        onStylusButtonChange(false); false
                     }
                     else -> {
                         val isPressed = (ev.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY) != 0
@@ -81,7 +79,11 @@ fun StylusDrawingCanvas(
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val stylusDown = event.changes.firstOrNull { it.type == PointerType.Stylus && it.pressed }
                         if (stylusDown != null) {
-                            var tempPath = listOf(stylusDown.position)
+                            // Helper to determine if a point is inside this canvas
+                            fun inBounds(p: Offset): Boolean =
+                                p.x >= 0f && p.y >= 0f && p.x <= size.width.toFloat() && p.y <= size.height.toFloat()
+
+                            var tempPath = if (inBounds(stylusDown.position)) listOf(stylusDown.position) else emptyList()
                             onCurrentPathChange(tempPath)
 
                             while (true) {
@@ -89,17 +91,33 @@ fun StylusDrawingCanvas(
                                 val dragPointer = dragEvent.changes.find { it.id == stylusDown.id }
                                 if (dragPointer == null || !dragPointer.pressed) break
 
-                                tempPath = tempPath + dragPointer.position
-                                onCurrentPathChange(tempPath)
+                                val pos = dragPointer.position
+                                val inside = inBounds(pos)
 
                                 if (drawingTool == DrawingTool.ERASE) {
-                                    val radius = eraserSizeDp.dp.toPx()
-                                    val eraseIndex = paths.indexOfFirst { stroke ->
-                                        stroke.points.any { p -> (p - dragPointer.position).getDistance() < radius }
+                                    if (inside) {
+                                        val radius = eraserSizeDp.dp.toPx()
+                                        val eraseIndex = paths.indexOfFirst { stroke ->
+                                            stroke.points.any { p -> (p - pos).getDistance() < radius }
+                                        }
+                                        if (eraseIndex != -1) {
+                                            onErasePath(eraseIndex)
+                                            // stop erasing this gesture to avoid rapid repeat removes
+                                            break
+                                        }
                                     }
-                                    if (eraseIndex != -1) {
-                                        onErasePath(eraseIndex)
-                                        break
+                                } else {
+                                    // WRITE tool: end the current stroke when leaving bounds
+                                    if (inside) {
+                                        tempPath = tempPath + pos
+                                        onCurrentPathChange(tempPath)
+                                    } else {
+                                        if (tempPath.isNotEmpty()) {
+                                            onPathAdded(tempPath)
+                                            tempPath = emptyList()
+                                            onCurrentPathChange(tempPath)
+                                        }
+                                        // while outside, do nothing (no ink)
                                     }
                                 }
                             }
