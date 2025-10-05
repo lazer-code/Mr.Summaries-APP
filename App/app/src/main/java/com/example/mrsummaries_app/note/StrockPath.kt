@@ -1,4 +1,4 @@
-package com.example.mrsummaries_app
+package com.example.mrsummaries_app.note
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color

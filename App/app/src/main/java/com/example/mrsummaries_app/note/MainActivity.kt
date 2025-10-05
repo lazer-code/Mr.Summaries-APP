@@ -1,4 +1,4 @@
-package com.example.mrsummaries_app
+package com.example.mrsummaries_app.note
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

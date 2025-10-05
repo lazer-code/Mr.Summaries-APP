@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalComposeUiApi::class)
 
-package com.example.mrsummaries_app
+package com.example.mrsummaries_app.note
 
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
@@ -19,6 +19,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.cancel
 
 enum class DrawingTool { WRITE, ERASE }
 
@@ -73,65 +74,85 @@ fun StylusDrawingCanvas(
                     }
                 }
             }
-            .pointerInput(drawingTool, paths, eraserSizeDp) {
-                while (true) {
-                    awaitPointerEventScope {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val stylusDown = event.changes.firstOrNull { it.type == PointerType.Stylus && it.pressed }
-                        if (stylusDown != null) {
-                            // Helper to determine if a point is inside this canvas
-                            fun inBounds(p: Offset): Boolean =
-                                p.x >= 0f && p.y >= 0f && p.x <= size.width.toFloat() && p.y <= size.height.toFloat()
+            // NOTE: avoid including `paths` here as a key to prevent cancelling pointer coroutine
+            // every time drawing data changes (that caused freezes). Depend on stable inputs only.
+            .pointerInput(drawingTool, eraserSizeDp) {
+                // Keep the pointer-handling loop robust to cancellation:
+                try {
+                    while (true) {
+                        awaitPointerEventScope {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            // Find a stylus down pointer (pressed)
+                            val stylusDown = event.changes.firstOrNull { it.type == PointerType.Stylus && it.pressed }
+                            if (stylusDown != null) {
+                                // Helper to determine if a point is inside this canvas
+                                fun inBounds(p: Offset): Boolean =
+                                    p.x >= 0f && p.y >= 0f && p.x <= size.width.toFloat() && p.y <= size.height.toFloat()
 
-                            var tempPath = if (inBounds(stylusDown.position)) listOf(stylusDown.position) else emptyList()
-                            onCurrentPathChange(tempPath)
+                                // start a new temporary path only if the press is inside bounds
+                                var tempPath = if (inBounds(stylusDown.position)) listOf(stylusDown.position) else emptyList()
+                                onCurrentPathChange(tempPath)
 
-                            while (true) {
-                                val dragEvent = awaitPointerEvent(PointerEventPass.Initial)
-                                val dragPointer = dragEvent.changes.find { it.id == stylusDown.id }
-                                if (dragPointer == null || !dragPointer.pressed) break
+                                // Track this pointer id for the drag loop
+                                val downId = stylusDown.id
 
-                                val pos = dragPointer.position
-                                val inside = inBounds(pos)
+                                // Drag loop for this pointer until release or pointer disappears
+                                while (true) {
+                                    val dragEvent = awaitPointerEvent(PointerEventPass.Initial)
+                                    val dragPointer = dragEvent.changes.find { it.id == downId }
+                                    if (dragPointer == null || !dragPointer.pressed) {
+                                        // pointer ended or no longer pressed -> finish
+                                        break
+                                    }
 
-                                if (drawingTool == DrawingTool.ERASE) {
-                                    if (inside) {
-                                        val radius = eraserSizeDp.dp.toPx()
-                                        val eraseIndex = paths.indexOfFirst { stroke ->
-                                            stroke.points.any { p -> (p - pos).getDistance() < radius }
+                                    val pos = dragPointer.position
+                                    val inside = inBounds(pos)
+
+                                    if (drawingTool == DrawingTool.ERASE) {
+                                        if (inside) {
+                                            val radius = eraserSizeDp.dp.toPx()
+                                            val eraseIndex = paths.indexOfFirst { stroke ->
+                                                stroke.points.any { p -> (p - pos).getDistance() < radius }
+                                            }
+                                            if (eraseIndex != -1) {
+                                                onErasePath(eraseIndex)
+                                            }
                                         }
-                                        if (eraseIndex != -1) {
-                                            onErasePath(eraseIndex)
-                                            // stop erasing this gesture to avoid rapid repeat removes
+                                        // Keep showing the eraser preview (no path accumulation)
+                                        tempPath = if (inside) listOf(pos) else emptyList()
+                                        onCurrentPathChange(tempPath)
+                                    } else { // WRITE
+                                        if (inside) {
+                                            tempPath = when {
+                                                tempPath.isEmpty() -> listOf(pos)
+                                                else -> tempPath + listOf(pos)
+                                            }
+                                            onCurrentPathChange(tempPath)
+                                        } else {
+                                            // left the canvas; finish current stroke
                                             break
                                         }
                                     }
-                                } else {
-                                    // WRITE tool: end the current stroke when leaving bounds
-                                    if (inside) {
-                                        tempPath = tempPath + pos
-                                        onCurrentPathChange(tempPath)
-                                    } else {
-                                        if (tempPath.isNotEmpty()) {
-                                            onPathAdded(tempPath)
-                                            tempPath = emptyList()
-                                            onCurrentPathChange(tempPath)
-                                        }
-                                        // while outside, do nothing (no ink)
-                                    }
-                                }
-                            }
+                                } // end drag loop
 
-                            if (drawingTool == DrawingTool.WRITE && tempPath.isNotEmpty()) {
-                                onPathAdded(tempPath)
-                            }
-                            onCurrentPathChange(emptyList())
-                        }
-                    }
+                                // If we have a drawn write path, commit it
+                                if (drawingTool == DrawingTool.WRITE && tempPath.isNotEmpty()) {
+                                    onPathAdded(tempPath)
+                                }
+                                // Clear any in-progress path indicator
+                                onCurrentPathChange(emptyList())
+                            } // end stylusDown handling
+                        } // end awaitPointerEventScope
+                    } // end main while
+                } finally {
+                    // Ensure we always clear in-progress drawing state when coroutine is cancelled
+                    onCurrentPathChange(emptyList())
+                    // Also ensure stylus button state isn't stuck
+                    onStylusButtonChange(false)
                 }
             }
     ) {
-        // Draw stored strokes
+        // Draw persisted strokes
         for (stroke in paths) {
             val pts = stroke.points
             val widthPx = stroke.strokeWidthDp.dp.toPx()

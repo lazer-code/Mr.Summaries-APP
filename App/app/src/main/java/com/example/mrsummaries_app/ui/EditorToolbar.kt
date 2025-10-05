@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class)
 
 package com.example.mrsummaries_app.ui
 
@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -32,9 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.mrsummaries_app.AppIcons
-import com.example.mrsummaries_app.CostumePen
-import com.example.mrsummaries_app.DrawingTool
+import com.example.mrsummaries_app.note.AppIcons
+import com.example.mrsummaries_app.note.CostumePen
+import com.example.mrsummaries_app.note.DrawingTool
 
 private val BrandTeal = Color(0xFF003153)
 
@@ -66,7 +67,7 @@ fun HoverBar(
     setShowPenSize: (Boolean) -> Unit,
     setShowEraserSize: (Boolean) -> Unit
 ) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = isSystemInDarkTheme()
     val backgroundColor = if (!isDark) BrandTeal else Color(0xCCFFFFFF)
     val tint = contrastOn(backgroundColor)
 

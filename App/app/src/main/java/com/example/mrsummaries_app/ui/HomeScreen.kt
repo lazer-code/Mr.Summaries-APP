@@ -3,8 +3,8 @@
 package com.example.mrsummaries_app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -24,13 +26,12 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -48,17 +49,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.example.mrsummaries_app.StrokePath
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.example.mrsummaries_app.files.FsNode
 import com.example.mrsummaries_app.files.FsRepository
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
+import com.example.mrsummaries_app.note.StrokePath
+import kotlin.math.max
 
 private val BrandTeal = Color(0xFF003153)
 
@@ -67,10 +70,6 @@ fun HomeScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         FsRepository.ensureInitialized(context)
-        if (FsRepository.root.children.isEmpty()) {
-            // Seed only on truly empty storage
-            FsRepository.resetToSample()
-        }
     }
 
     // Observe tree changes so UI updates without theme toggling
@@ -112,7 +111,6 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            // Collapsible side menu
             if (isMenuOpen) {
                 val sideMenuBg = if (!isDark) BrandTeal else MaterialTheme.colorScheme.surface
                 val menuIconTint = contrastOn(sideMenuBg)
@@ -126,7 +124,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     selectedNoteId = selectedNoteId,
                     onNoteOpened = { isMenuOpen = false },
                     iconTint = menuIconTint,
-                    treeVersion = treeVersion, // keep tree in sync
+                    treeVersion = treeVersion,
                     sideMenuBg = sideMenuBg,
                     sideMenuWidth = sideMenuWidth
                 )
@@ -184,6 +182,38 @@ private data class FlatRow(
     val isCycleMarker: Boolean = false
 )
 
+private enum class NameDialogKind { CreateFolder, CreateNote, Rename }
+
+@Composable
+private fun NameDialog(
+    title: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember(initial) { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
 @Composable
 private fun SideMenuTree(
     modifier: Modifier,
@@ -206,10 +236,15 @@ private fun SideMenuTree(
     var moveSourceId by remember { mutableStateOf<String?>(null) }
     var showMovePicker by remember { mutableStateOf(false) }
 
-    // Track row Y positions relative to this side menu root (in px)
+    // Track row Y positions (absolute window Y in px) and row heights (px)
     val rowTopByIdPx = remember { mutableStateMapOf<String, Float>() }
-    var sideRootWindowTop by remember { mutableStateOf(0f) }
+    val rowHeightByIdPx = remember { mutableStateMapOf<String, Int>() }
+
+    var sideRootWindowOffset by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
+
+    // Popup measured height (px)
+    val popupHeightPx = remember { mutableStateOf<Int?>(null) }
 
     fun isExpanded(id: String) = expanded.contains(id)
     fun toggleExpanded(id: String) { if (isExpanded(id)) expanded.remove(id) else expanded.add(id) }
@@ -228,16 +263,18 @@ private fun SideMenuTree(
         modifier = modifier
             .padding(8.dp)
             .onGloballyPositioned { coords ->
-                // Capture this container's top in window space for relative row positions
-                sideRootWindowTop = coords.positionInWindow().y
+                // Capture this container's top-left in window space for absolute coordinates
+                sideRootWindowOffset = coords.positionInWindow()
             }
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             itemsIndexed(rows, key = { _, r -> r.node.id }) { _, row ->
-                // Each row reports its top Y in window; we convert to relative offset later
+                // Each row reports its top Y in window and its height; we store absolute top and height
                 RowAnchor(
-                    nodeId = row.node.id,
-                    onTopInWindow = { topInWindow -> rowTopByIdPx[row.node.id] = topInWindow - sideRootWindowTop }
+                    onPositionInWindow = { topInWindow, heightPx ->
+                        rowTopByIdPx[row.node.id] = topInWindow
+                        rowHeightByIdPx[row.node.id] = heightPx
+                    }
                 ) {
                     TreeRow(
                         row = row,
@@ -260,71 +297,101 @@ private fun SideMenuTree(
             }
         }
 
-        // Single menu anchored to the side menu container, vertically offset to the row's top
-        val menuYOffsetDp = with(density) { (rowTopByIdPx[showMenuForId] ?: 0f).toDp() }
-        val menuNode = showMenuForId?.let { FsRepository.findNode(it) }
+        // Show popup anchored to window coordinates so we can place it precisely
+        if (showMenuForId != null) {
+            val densityLocal = density
+            val menuNode = showMenuForId?.let { FsRepository.findNode(it) }
+            // compute window coordinates for popup origin (top-left)
+            val sideMenuWidthPx = with(densityLocal) { sideMenuWidth.toPx() }
+            val gapPx = with(densityLocal) { 8.dp.toPx() } // small gap between side menu and popup
+            val popupX = (sideRootWindowOffset.x + sideMenuWidthPx + gapPx).toInt()
 
-        DropdownMenu(
-            expanded = showMenuForId != null,
-            onDismissRequest = { showMenuForId = null },
-            // Place the menu outside the side menu, aligned to the selected row's top
-            offset = DpOffset(x = sideMenuWidth, y = menuYOffsetDp),
-            containerColor = menuBg
-        ) {
-            if (menuNode != null) {
-                // 1) Rename (for all except root)
-                if (menuNode.id != root.id) {
-                    DropdownMenuItem(
-                        text = { Text("Rename", color = menuTint) },
-                        onClick = {
-                            showMenuForId = null
-                            nameDialogKind = NameDialogKind.Rename
-                            nameDialogTargetId = menuNode.id
-                            nameDialogInitial = menuNode.name
-                        }
-                    )
-                }
+            // Calculate vertical center alignment: place popup so its center equals row center.
+            val rowTop = rowTopByIdPx[showMenuForId] ?: sideRootWindowOffset.y
+            val rowHeight = (rowHeightByIdPx[showMenuForId]?.toFloat() ?: 0f)
+            val measuredPopupHeight = popupHeightPx.value ?: 0
+            val popupYFloat = rowTop + rowHeight / 2f - measuredPopupHeight / 2f
+            // ensure not negative
+            val popupY = max(0, popupYFloat.toInt())
 
-                // 2) Add subfolder (folders only)
-                if (menuNode is FsNode.Folder) {
-                    DropdownMenuItem(
-                        text = { Text("Add Folder", color = menuTint) },
-                        onClick = {
-                            showMenuForId = null
-                            nameDialogKind = NameDialogKind.CreateFolder
-                            nameDialogParentId = menuNode.id
-                            nameDialogInitial = ""
+            // Use Popup to place the menu outside the side menu and centered vertically on the row
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(popupX, popupY),
+                onDismissRequest = { showMenuForId = null },
+                properties = PopupProperties(focusable = true)
+            ) {
+                // Wrap content: surface and content are explicitly wrapContent so they don't stretch
+                Surface(
+                    color = menuBg,
+                    tonalElevation = 4.dp,
+                    modifier = Modifier
+                        .wrapContentWidth(Alignment.Start)
+                        .wrapContentHeight()
+                        .onGloballyPositioned { coords ->
+                            // Measure the popup height so we can center it on the selected row
+                            popupHeightPx.value = coords.size.height
                         }
-                    )
-                    // 3) Add note (folders only)
-                    DropdownMenuItem(
-                        text = { Text("Add Note", color = menuTint) },
-                        onClick = {
-                            showMenuForId = null
-                            nameDialogKind = NameDialogKind.CreateNote
-                            nameDialogParentId = menuNode.id
-                            nameDialogInitial = ""
-                        }
-                    )
-                }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .wrapContentWidth(Alignment.Start)
+                            .wrapContentHeight()
+                    ) {
+                        if (menuNode != null) {
+                            // small helper to render a single menu item (wrap-content, consistent padding)
+                            @Composable
+                            fun MenuItem(textLabel: String, onClick: () -> Unit) {
+                                Box(
+                                    modifier = Modifier
+                                        .wrapContentWidth(Alignment.Start)
+                                        .wrapContentHeight()
+                                        .clickable { onClick() }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                ) {
+                                    Text(textLabel, color = menuTint)
+                                }
+                            }
 
-                // Existing actions for non-root
-                if (menuNode.id != root.id) {
-                    DropdownMenuItem(
-                        text = { Text("Move…", color = menuTint) },
-                        onClick = {
-                            showMenuForId = null
-                            moveSourceId = menuNode.id
-                            showMovePicker = true
+                            // Rename (for all except root)
+                            if (menuNode.id != root.id) {
+                                MenuItem("Rename") {
+                                    showMenuForId = null
+                                    nameDialogKind = NameDialogKind.Rename
+                                    nameDialogTargetId = menuNode.id
+                                    nameDialogInitial = menuNode.name
+                                }
+                            }
+                            // Add subfolder (folders only)
+                            if (menuNode is FsNode.Folder) {
+                                MenuItem("Add Folder") {
+                                    showMenuForId = null
+                                    nameDialogKind = NameDialogKind.CreateFolder
+                                    nameDialogParentId = menuNode.id
+                                    nameDialogInitial = ""
+                                }
+                                MenuItem("Add Note") {
+                                    showMenuForId = null
+                                    nameDialogKind = NameDialogKind.CreateNote
+                                    nameDialogParentId = menuNode.id
+                                    nameDialogInitial = ""
+                                }
+                            }
+
+                            // Existing actions for non-root
+                            if (menuNode.id != root.id) {
+                                MenuItem("Move…") {
+                                    showMenuForId = null
+                                    moveSourceId = menuNode.id
+                                    showMovePicker = true
+                                }
+                                MenuItem("Delete") {
+                                    showMenuForId = null
+                                    FsRepository.deleteNode(menuNode.id)
+                                }
+                            }
                         }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Delete", color = menuTint) },
-                        onClick = {
-                            showMenuForId = null
-                            FsRepository.deleteNode(menuNode.id)
-                        }
-                    )
+                    }
                 }
             }
         }
@@ -387,62 +454,21 @@ private fun SideMenuTree(
     }
 }
 
-/**
- * A simple wrapper that reports the top Y of its content in window space.
- */
 @Composable
 private fun RowAnchor(
-    nodeId: String,
-    onTopInWindow: (Float) -> Unit,
+    onPositionInWindow: (Float, Int) -> Unit,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .onGloballyPositioned { coords ->
-                onTopInWindow(coords.positionInWindow().y)
+                val pos = coords.positionInWindow()
+                onPositionInWindow(pos.y, coords.size.height)
             }
     ) {
         content()
     }
-}
-
-private enum class NameDialogKind { CreateFolder, CreateNote, Rename }
-
-@Composable
-private fun NameDialog(
-    title: String,
-    initial: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    // Reset when 'initial' changes (important for Rename)
-    var text by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    label = { Text("Name") }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val name = text.trim()
-                    if (name.isNotEmpty()) onConfirm(name)
-                }
-            ) { Text("OK") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }
 
 @Composable
@@ -455,10 +481,11 @@ private fun TreeRow(
     onOpenMore: () -> Unit,
     iconTint: Color
 ) {
-    val depthPadding = (row.depth * 16).coerceAtMost(16 * 12)
+    val depthPadding = row.depth * 12
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(start = 8.dp)
             .background(
                 if (row.node is FsNode.Note && row.node.id == selectedNoteId)
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
@@ -526,23 +553,22 @@ private fun TreeRow(
 
 private fun flattenTree(
     root: FsNode.Folder,
-    expandedIds: Set<String>
+    expandedIds: Set<String>,
+    depth: Int = 0,
+    out: MutableList<FlatRow> = mutableListOf(),
+    visited: MutableSet<String> = mutableSetOf()
 ): List<FlatRow> {
-    val out = mutableListOf<FlatRow>()
-    val visited = hashSetOf<String>()
-
-    fun walk(node: FsNode, depth: Int) {
-        out.add(FlatRow(node, depth))
-        if (node is FsNode.Folder) {
-            if (!visited.add(node.id)) {
-                out.add(FlatRow(node, depth + 1, isCycleMarker = true))
-                return
-            }
-            if (expandedIds.contains(node.id)) {
-                node.children.forEach { child -> walk(child, depth + 1) }
-            }
+    if (!visited.add(root.id)) {
+        out.add(FlatRow(root, depth, isCycleMarker = true))
+        return out
+    }
+    out.add(FlatRow(root, depth))
+    if (!expandedIds.contains(root.id)) return out
+    for (child in root.children) {
+        when (child) {
+            is FsNode.Folder -> flattenTree(child, expandedIds, depth + 1, out, visited)
+            is FsNode.Note -> out.add(FlatRow(child, depth + 1))
         }
     }
-    walk(root, 0)
     return out
 }

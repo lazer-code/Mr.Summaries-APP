@@ -28,7 +28,6 @@ object FsRepository {
     private val idToDir = hashMapOf<String, File>()
     private val idToNode = hashMapOf<String, FsNode>()
 
-    // Files/JSON keys
     private const val META_FILE = ".node.json"
     private const val TYPE_FOLDER = "folder"
     private const val TYPE_NOTE = "note"
@@ -39,25 +38,11 @@ object FsRepository {
     @Synchronized
     fun ensureInitialized(context: Context) {
         if (baseDir == null) {
-            baseDir = File(context.filesDir, "fs").apply { mkdirs() }
+            baseDir = File(context.filesDir, "fs").apply { if (!exists()) mkdirs() }
         }
         loadFromDiskOrSeed()
     }
 
-    @Synchronized
-    fun resetToSample() {
-        val dir = baseDir ?: return
-        if (dir.listFiles().isNullOrEmpty()) {
-            val notes = ensureFolder(dir, "Notes")
-            val math = ensureFolder(notes, "Math")
-            val cs = ensureFolder(notes, "CS")
-            ensureNote(math, "Algebra Note")
-            ensureNote(cs, "Data Structures Note")
-        }
-        loadFromDiskOrSeed()
-    }
-
-    @Synchronized
     fun selectNote(id: String) {
         selectedNoteId = id
         bump()
@@ -87,6 +72,7 @@ object FsRepository {
         if (src is FsNode.Folder) {
             var ok = true
             fun containsDesc(d: FsNode) {
+                if (!ok) return
                 if (d.id == target.id) { ok = false; return }
                 if (d is FsNode.Folder) d.children.forEach { containsDesc(it) }
             }
@@ -134,7 +120,6 @@ object FsRepository {
         if (target == dir) {
             node.name = unique
             writeMeta(dir, NodeMeta(node.id, typeOf(node), node.name))
-            bump()
             return true
         }
         if (dir.renameTo(target)) {
@@ -206,6 +191,7 @@ object FsRepository {
             .put(KEY_ID, meta.id)
             .put(KEY_TYPE, meta.type)
             .put(KEY_NAME, meta.name)
+        // writeText is fine here (small file); keep it simple
         f.writeText(json.toString())
     }
 
@@ -223,14 +209,16 @@ object FsRepository {
     }
 
     private fun ensureFolder(parent: File, name: String): File {
-        val d = File(parent, name).apply { mkdirs() }
+        val d = File(parent, name)
+        if (!d.exists()) d.mkdirs()
         val meta = readMeta(d) ?: NodeMeta(UUID.randomUUID().toString(), TYPE_FOLDER, name)
         writeMeta(d, meta.copy(name = name))
         return d
     }
 
     private fun ensureNote(parent: File, name: String): File {
-        val d = File(parent, name).apply { mkdirs() }
+        val d = File(parent, name)
+        if (!d.exists()) d.mkdirs()
         val meta = readMeta(d) ?: NodeMeta(UUID.randomUUID().toString(), TYPE_NOTE, name)
         writeMeta(d, meta.copy(name = name))
         return d
@@ -238,11 +226,14 @@ object FsRepository {
 
     private fun uniqueName(parent: File, base: String): String {
         val trimmed = base.trim().ifEmpty { "Untitled" }
-        var candidate = trimmed
+        // Snapshot existing names once to avoid repeated File.exists() and many File objects/syscalls
+        val existing = parent.list()?.toSet() ?: emptySet()
+        if (!existing.contains(trimmed)) return trimmed
         var idx = 1
-        while (File(parent, candidate).exists()) {
+        var candidate: String
+        do {
             candidate = "$trimmed (${idx++})"
-        }
+        } while (existing.contains(candidate))
         return candidate
     }
 
@@ -270,6 +261,7 @@ object FsRepository {
         if (node is FsNode.Folder) {
             node.children.forEach { child ->
                 val childDir = File(dir, child.name)
+                // store index mappings for the immediate children - ok to allocate childDir here
                 if (child is FsNode.Folder || child is FsNode.Note) {
                     idToDir[child.id] = childDir
                     idToNode[child.id] = child
@@ -280,17 +272,26 @@ object FsRepository {
 
     private fun loadFromDiskOrSeed() {
         val dir = baseDir ?: return
-        if (dir.listFiles().isNullOrEmpty()) {
-            resetToSample()
-            return
-        }
+
+        // Initialize root and index it up-front so UI code (which does id-based lookups)
+        // can always find the root even if the on-disk directory is empty.
         clearAllIndexes()
         root = FsNode.Folder(id = "root", name = "Root", children = mutableStateListOf())
         idToDir[root.id] = dir
         idToNode[root.id] = root
 
+        // If empty, don't try to load children (but root is indexed so UI menus work)
+        val childDirs = dir.listFiles { f -> f.isDirectory } ?: emptyArray()
+        if (childDirs.isEmpty()) {
+            // no children to load; keep root empty
+            selectedNoteId?.let { if (!idToNode.containsKey(it)) selectedNoteId = null }
+            bump()
+            return
+        }
+
         fun loadFolder(parentFolder: FsNode.Folder, parentDir: File) {
-            val childrenDirs = parentDir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()
+            // request only directories to reduce intermediate allocations
+            val childrenDirs = parentDir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()
             for (childDir in childrenDirs) {
                 val meta = readMeta(childDir) ?: continue
                 when (meta.type) {
@@ -311,6 +312,8 @@ object FsRepository {
             }
         }
 
+        // clear children of the root before loading (in case root was reinitialized earlier)
+        root.children.clear()
         loadFolder(root, dir)
         selectedNoteId?.let { if (!idToNode.containsKey(it)) selectedNoteId = null }
         bump()

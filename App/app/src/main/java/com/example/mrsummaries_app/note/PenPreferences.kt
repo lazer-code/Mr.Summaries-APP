@@ -1,4 +1,4 @@
-package com.example.mrsummaries_app
+package com.example.mrsummaries_app.note
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color

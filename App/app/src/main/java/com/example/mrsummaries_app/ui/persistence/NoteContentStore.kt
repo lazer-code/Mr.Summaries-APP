@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import com.example.mrsummaries_app.StrokePath
+import com.example.mrsummaries_app.note.StrokePath
 import com.example.mrsummaries_app.files.FsRepository
 import java.io.File
 
@@ -23,37 +23,38 @@ object NoteContentStore {
 
     suspend fun save(context: Context, noteId: String, paths: List<StrokePath>) {
         val f = fileFor(context, noteId) ?: return
-        val encoded = buildString {
-            paths.forEach { stroke ->
+        // Write using buffered writer line-by-line to avoid building one large String in memory
+        f.parentFile?.let { if (!it.exists()) it.mkdirs() }
+        f.bufferedWriter().use { bw ->
+            for (stroke in paths) {
                 val width = stroke.strokeWidthDp
                 val argb = stroke.color.toArgb()
                 val pts = stroke.points.joinToString(";") { "${it.x},${it.y}" }
-                append("$width|$argb|$pts\n")
+                bw.append("$width|$argb|$pts")
+                bw.newLine()
             }
         }
-        f.writeText(encoded)
     }
 
     suspend fun load(context: Context, noteId: String): List<StrokePath> {
         val f = fileFor(context, noteId) ?: return emptyList()
         if (!f.exists()) return emptyList()
-        val lines = f.readLines()
-        return lines.mapNotNull { line ->
-            if (line.isBlank()) return@mapNotNull null
-            val parts = line.split("|")
-            if (parts.size != 3) return@mapNotNull null
-            val width = parts[0].toFloatOrNull() ?: return@mapNotNull null
-            val argb = parts[1].toIntOrNull() ?: return@mapNotNull null
-            val pts = parts[2].split(";").mapNotNull { p ->
-                val xy = p.split(",")
-                if (xy.size != 2) null
-                else {
-                    val x = xy[0].toFloatOrNull()
-                    val y = xy[1].toFloatOrNull()
-                    if (x == null || y == null) null else Offset(x, y)
+        return f.bufferedReader().useLines { lines ->
+            lines.mapNotNull { line ->
+                if (line.isBlank()) return@mapNotNull null
+                val parts = line.split("|")
+                if (parts.size != 3) return@mapNotNull null
+                val width = parts[0].toFloatOrNull() ?: return@mapNotNull null
+                val colorArgb = parts[1].toIntOrNull() ?: return@mapNotNull null
+                val pts = parts[2].split(";").mapNotNull { pt ->
+                    val xy = pt.split(",")
+                    if (xy.size != 2) return@mapNotNull null
+                    val x = xy[0].toFloatOrNull() ?: return@mapNotNull null
+                    val y = xy[1].toFloatOrNull() ?: return@mapNotNull null
+                    Offset(x, y)
                 }
-            }
-            StrokePath(points = pts, color = Color(argb), strokeWidthDp = width)
+                StrokePath(pts, Color(colorArgb), width)
+            }.toList()
         }
     }
 }
