@@ -19,14 +19,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -70,6 +67,9 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             FsRepository.resetToSample()
         }
     }
+
+    // Observe tree changes so UI updates without theme toggling
+    val treeVersion = FsRepository.treeVersion
 
     val selectedNoteId = FsRepository.selectedNoteId
     val root = FsRepository.root
@@ -118,7 +118,8 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     root = root,
                     selectedNoteId = selectedNoteId,
                     onNoteOpened = { isMenuOpen = false },
-                    iconTint = menuIconTint
+                    iconTint = menuIconTint,
+                    treeVersion = treeVersion // keep tree in sync
                 )
 
                 // Vertical divider adapted to background
@@ -180,7 +181,8 @@ private fun SideMenuTree(
     root: FsNode.Folder,
     selectedNoteId: String?,
     onNoteOpened: () -> Unit,
-    iconTint: Color
+    iconTint: Color,
+    treeVersion: Int // triggers recomposition when repo changes
 ) {
     val expanded = remember { mutableStateListOf(root.id) }
     var showMenuForId by remember { mutableStateOf<String?>(null) }
@@ -197,17 +199,18 @@ private fun SideMenuTree(
     fun isExpanded(id: String) = expanded.contains(id)
     fun toggleExpanded(id: String) { if (isExpanded(id)) expanded.remove(id) else expanded.add(id) }
 
-    val rows = flattenTree(root, expandedIds = expanded.toSet())
+    // Recompute rows when tree changes or expand set changes
+    val rows = remember(treeVersion, expanded.toList()) {
+        flattenTree(root, expandedIds = expanded.toSet())
+    }
 
     Column(modifier = modifier.padding(8.dp)) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             itemsIndexed(rows, key = { _, r -> r.node.id }) { _, row ->
-                val showInline = selectedActionId == row.node.id
                 TreeRow(
                     row = row,
                     selectedNoteId = selectedNoteId,
                     isExpanded = isExpanded(row.node.id),
-                    showInlineActions = showInline,
                     onToggleExpand = { toggleExpanded(row.node.id) },
                     onClickNode = {
                         selectedActionId = row.node.id
@@ -218,32 +221,6 @@ private fun SideMenuTree(
                             }
                             is FsNode.Folder -> toggleExpanded(n.id)
                         }
-                    },
-                    onNewFolder = {
-                        val parentId = when (val n = row.node) {
-                            is FsNode.Folder -> n.id
-                            is FsNode.Note -> findParentFolderId(n.id)
-                        }
-                        nameDialogKind = NameDialogKind.CreateFolder
-                        nameDialogParentId = parentId
-                        nameDialogTargetId = null
-                        nameDialogInitial = ""
-                    },
-                    onNewNote = {
-                        val parentId = when (val n = row.node) {
-                            is FsNode.Folder -> n.id
-                            is FsNode.Note -> findParentFolderId(n.id)
-                        }
-                        nameDialogKind = NameDialogKind.CreateNote
-                        nameDialogParentId = parentId
-                        nameDialogTargetId = null
-                        nameDialogInitial = ""
-                    },
-                    onRename = {
-                        nameDialogKind = NameDialogKind.Rename
-                        nameDialogParentId = null
-                        nameDialogTargetId = row.node.id
-                        nameDialogInitial = row.node.name
                     },
                     onOpenMore = { showMenuForId = row.node.id },
                     iconTint = iconTint
@@ -341,7 +318,8 @@ private fun NameDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var text by remember { mutableStateOf(initial) }
+    // Reset when 'initial' changes (important for Rename)
+    var text by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -374,12 +352,8 @@ private fun TreeRow(
     row: FlatRow,
     selectedNoteId: String?,
     isExpanded: Boolean,
-    showInlineActions: Boolean,
     onToggleExpand: () -> Unit,
     onClickNode: () -> Unit,
-    onNewFolder: () -> Unit,
-    onNewNote: () -> Unit,
-    onRename: () -> Unit,
     onOpenMore: () -> Unit,
     iconTint: Color
 ) {
@@ -419,17 +393,6 @@ private fun TreeRow(
                     overflow = TextOverflow.Ellipsis,
                     color = iconTint
                 )
-                if (showInlineActions) {
-                    IconButton(onClick = onNewFolder) {
-                        Icon(Icons.Filled.CreateNewFolder, contentDescription = "New Folder", tint = iconTint)
-                    }
-                    IconButton(onClick = onNewNote) {
-                        Icon(Icons.Filled.NoteAdd, contentDescription = "New Note", tint = iconTint)
-                    }
-                    IconButton(onClick = onRename) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = iconTint)
-                    }
-                }
                 Text(
                     "⋮",
                     modifier = Modifier
@@ -451,14 +414,6 @@ private fun TreeRow(
                     overflow = TextOverflow.Ellipsis,
                     color = iconTint
                 )
-                if (showInlineActions) {
-                    IconButton(onClick = onNewNote) {
-                        Icon(Icons.Filled.NoteAdd, contentDescription = "New Note", tint = iconTint)
-                    }
-                    IconButton(onClick = onRename) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = iconTint)
-                    }
-                }
                 Text(
                     "⋮",
                     modifier = Modifier

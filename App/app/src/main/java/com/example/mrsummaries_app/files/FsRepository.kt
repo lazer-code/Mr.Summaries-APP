@@ -1,6 +1,10 @@
 package com.example.mrsummaries_app.files
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -8,12 +12,17 @@ import java.util.UUID
 object FsRepository {
     // In-memory state used by the UI
     @Volatile
-    var root: FsNode.Folder = FsNode.Folder(id = "root", name = "Root", children = mutableListOf())
+    var root: FsNode.Folder = FsNode.Folder(id = "root", name = "Root", children = mutableStateListOf())
         private set
 
     @Volatile
     var selectedNoteId: String? = null
         private set
+
+    // Compose signal so UI recomposes when tree changes
+    var treeVersion by mutableStateOf(0)
+        private set
+    private fun bump() { treeVersion++ }
 
     private var baseDir: File? = null
     private val idToDir = hashMapOf<String, File>()
@@ -51,6 +60,7 @@ object FsRepository {
     @Synchronized
     fun selectNote(id: String) {
         selectedNoteId = id
+        bump()
     }
 
     @Synchronized
@@ -93,9 +103,10 @@ object FsRepository {
         val unique = uniqueName(parentDir, name)
         val dir = ensureFolder(parentDir, unique)
         val meta = readMeta(dir) ?: return null
-        val node = FsNode.Folder(meta.id, meta.name, mutableListOf())
+        val node = FsNode.Folder(meta.id, meta.name, mutableStateListOf())
         parent.children.add(node)
         indexNode(node, dir)
+        bump()
         return node
     }
 
@@ -109,6 +120,7 @@ object FsRepository {
         val node = FsNode.Note(meta.id, meta.name)
         parent.children.add(node)
         indexNode(node, dir)
+        bump()
         return node
     }
 
@@ -122,12 +134,14 @@ object FsRepository {
         if (target == dir) {
             node.name = unique
             writeMeta(dir, NodeMeta(node.id, typeOf(node), node.name))
+            bump()
             return true
         }
         if (dir.renameTo(target)) {
             node.name = unique
             writeMeta(target, NodeMeta(node.id, typeOf(node), node.name))
             idToDir[nodeId] = target
+            bump()
             return true
         }
         return false
@@ -149,6 +163,7 @@ object FsRepository {
         clearIndexFor(node)
 
         if (selectedNoteId == nodeId) selectedNoteId = null
+        bump()
         return true
     }
 
@@ -170,6 +185,7 @@ object FsRepository {
         removeFromParent(root, sourceId)
         targetFolder.children.add(src)
         idToDir[sourceId] = dest
+        bump()
         return true
     }
 
@@ -269,7 +285,7 @@ object FsRepository {
             return
         }
         clearAllIndexes()
-        root = FsNode.Folder(id = "root", name = "Root", children = mutableListOf())
+        root = FsNode.Folder(id = "root", name = "Root", children = mutableStateListOf())
         idToDir[root.id] = dir
         idToNode[root.id] = root
 
@@ -279,7 +295,7 @@ object FsRepository {
                 val meta = readMeta(childDir) ?: continue
                 when (meta.type) {
                     TYPE_FOLDER -> {
-                        val fNode = FsNode.Folder(id = meta.id, name = meta.name, children = mutableListOf())
+                        val fNode = FsNode.Folder(id = meta.id, name = meta.name, children = mutableStateListOf())
                         parentFolder.children.add(fNode)
                         idToDir[fNode.id] = childDir
                         idToNode[fNode.id] = fNode
@@ -297,6 +313,7 @@ object FsRepository {
 
         loadFolder(root, dir)
         selectedNoteId?.let { if (!idToNode.containsKey(it)) selectedNoteId = null }
+        bump()
     }
 
     // Added: remove indexes for a node and its subtree
