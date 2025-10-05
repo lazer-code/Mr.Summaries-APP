@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,12 +47,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.example.mrsummaries_app.StrokePath
 import com.example.mrsummaries_app.files.FsNode
 import com.example.mrsummaries_app.files.FsRepository
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 
 private val BrandTeal = Color(0xFF003153)
 
@@ -81,6 +86,8 @@ fun HomeScreen(modifier: Modifier = Modifier) {
     // Top bar background: brand teal in light mode; theme surface in dark mode
     val topBarContainer = if (!isDark) BrandTeal else MaterialTheme.colorScheme.surface
     val topBarContent = contrastOn(topBarContainer)
+
+    val sideMenuWidth = 280.dp
 
     Scaffold(
         topBar = {
@@ -112,14 +119,16 @@ fun HomeScreen(modifier: Modifier = Modifier) {
 
                 SideMenuTree(
                     modifier = Modifier
-                        .width(280.dp)
+                        .width(sideMenuWidth)
                         .fillMaxHeight()
                         .background(sideMenuBg),
                     root = root,
                     selectedNoteId = selectedNoteId,
                     onNoteOpened = { isMenuOpen = false },
                     iconTint = menuIconTint,
-                    treeVersion = treeVersion // keep tree in sync
+                    treeVersion = treeVersion, // keep tree in sync
+                    sideMenuBg = sideMenuBg,
+                    sideMenuWidth = sideMenuWidth
                 )
 
                 // Vertical divider adapted to background
@@ -182,11 +191,12 @@ private fun SideMenuTree(
     selectedNoteId: String?,
     onNoteOpened: () -> Unit,
     iconTint: Color,
-    treeVersion: Int // triggers recomposition when repo changes
+    treeVersion: Int, // triggers recomposition when repo changes
+    sideMenuBg: Color,
+    sideMenuWidth: Dp
 ) {
     val expanded = remember { mutableStateListOf(root.id) }
     var showMenuForId by remember { mutableStateOf<String?>(null) }
-    var selectedActionId by remember { mutableStateOf<String?>(null) }
 
     var nameDialogKind by remember { mutableStateOf<NameDialogKind?>(null) }
     var nameDialogParentId by remember { mutableStateOf<String?>(null) }
@@ -196,6 +206,11 @@ private fun SideMenuTree(
     var moveSourceId by remember { mutableStateOf<String?>(null) }
     var showMovePicker by remember { mutableStateOf(false) }
 
+    // Track row Y positions relative to this side menu root (in px)
+    val rowTopByIdPx = remember { mutableStateMapOf<String, Float>() }
+    var sideRootWindowTop by remember { mutableStateOf(0f) }
+    val density = LocalDensity.current
+
     fun isExpanded(id: String) = expanded.contains(id)
     fun toggleExpanded(id: String) { if (isExpanded(id)) expanded.remove(id) else expanded.add(id) }
 
@@ -204,108 +219,191 @@ private fun SideMenuTree(
         flattenTree(root, expandedIds = expanded.toSet())
     }
 
-    Column(modifier = modifier.padding(8.dp)) {
+    // Menu background 10% brighter (dark) or 10% darker (light) than side menu
+    val isDark = isSystemInDarkTheme()
+    val menuBg = if (isDark) adjustBrightness(sideMenuBg, 0.10f) else adjustBrightness(sideMenuBg, -0.10f)
+    val menuTint = contrastOn(menuBg)
+
+    Box(
+        modifier = modifier
+            .padding(8.dp)
+            .onGloballyPositioned { coords ->
+                // Capture this container's top in window space for relative row positions
+                sideRootWindowTop = coords.positionInWindow().y
+            }
+    ) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             itemsIndexed(rows, key = { _, r -> r.node.id }) { _, row ->
-                TreeRow(
-                    row = row,
-                    selectedNoteId = selectedNoteId,
-                    isExpanded = isExpanded(row.node.id),
-                    onToggleExpand = { toggleExpanded(row.node.id) },
-                    onClickNode = {
-                        selectedActionId = row.node.id
-                        when (val n = row.node) {
-                            is FsNode.Note -> {
-                                FsRepository.selectNote(n.id)
-                                onNoteOpened()
-                            }
-                            is FsNode.Folder -> toggleExpanded(n.id)
-                        }
-                    },
-                    onOpenMore = { showMenuForId = row.node.id },
-                    iconTint = iconTint
-                )
-
-                DropdownMenu(
-                    expanded = showMenuForId == row.node.id,
-                    onDismissRequest = { showMenuForId = null }
+                // Each row reports its top Y in window; we convert to relative offset later
+                RowAnchor(
+                    nodeId = row.node.id,
+                    onTopInWindow = { topInWindow -> rowTopByIdPx[row.node.id] = topInWindow - sideRootWindowTop }
                 ) {
-                    if (row.node.id != root.id) {
-                        DropdownMenuItem(
-                            text = { Text("Move…", color = iconTint) },
-                            onClick = {
-                                showMenuForId = null
-                                moveSourceId = row.node.id
-                                showMovePicker = true
+                    TreeRow(
+                        row = row,
+                        selectedNoteId = selectedNoteId,
+                        isExpanded = isExpanded(row.node.id),
+                        onToggleExpand = { toggleExpanded(row.node.id) },
+                        onClickNode = {
+                            when (val n = row.node) {
+                                is FsNode.Note -> {
+                                    FsRepository.selectNote(n.id)
+                                    onNoteOpened()
+                                }
+                                is FsNode.Folder -> toggleExpanded(n.id)
                             }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = iconTint) },
-                            onClick = {
-                                showMenuForId = null
-                                FsRepository.deleteNode(row.node.id)
-                            }
-                        )
-                    }
+                        },
+                        onOpenMore = { showMenuForId = row.node.id },
+                        iconTint = iconTint
+                    )
                 }
             }
         }
 
-        // Create/Rename dialog
-        nameDialogKind?.let { kind ->
-            NameDialog(
-                title = when (kind) {
-                    NameDialogKind.CreateFolder -> "New Folder"
-                    NameDialogKind.CreateNote -> "New Note"
-                    NameDialogKind.Rename -> "Rename"
-                },
-                initial = nameDialogInitial,
-                onDismiss = {
-                    nameDialogKind = null
-                    nameDialogParentId = null
-                    nameDialogTargetId = null
-                    nameDialogInitial = ""
-                },
-                onConfirm = { text ->
-                    when (kind) {
-                        NameDialogKind.CreateFolder -> {
-                            val parentId = nameDialogParentId ?: root.id
-                            FsRepository.createFolder(parentId, text)
-                            if (!expanded.contains(parentId)) expanded.add(parentId)
-                        }
-                        NameDialogKind.CreateNote -> {
-                            val parentId = nameDialogParentId ?: root.id
-                            val note = FsRepository.createNote(parentId, text)
-                            if (!expanded.contains(parentId)) expanded.add(parentId)
-                            note?.let { FsRepository.selectNote(it.id); selectedActionId = it.id; onNoteOpened() }
-                        }
-                        NameDialogKind.Rename -> {
-                            val targetId = nameDialogTargetId
-                            if (targetId != null) FsRepository.renameNode(targetId, text)
-                        }
-                    }
-                    nameDialogKind = null
-                    nameDialogParentId = null
-                    nameDialogTargetId = null
-                    nameDialogInitial = ""
-                }
-            )
-        }
+        // Single menu anchored to the side menu container, vertically offset to the row's top
+        val menuYOffsetDp = with(density) { (rowTopByIdPx[showMenuForId] ?: 0f).toDp() }
+        val menuNode = showMenuForId?.let { FsRepository.findNode(it) }
 
-        // Move picker
-        if (showMovePicker && moveSourceId != null) {
-            MovePickerDialog(
-                sourceId = moveSourceId!!,
-                onDismiss = { showMovePicker = false; moveSourceId = null },
-                onMoveTo = { targetFolderId ->
-                    val moved = FsRepository.moveNode(moveSourceId!!, targetFolderId)
-                    if (moved && !expanded.contains(targetFolderId)) expanded.add(targetFolderId)
-                    showMovePicker = false
-                    moveSourceId = null
-                },
-                iconTint = iconTint
-            )
+        DropdownMenu(
+            expanded = showMenuForId != null,
+            onDismissRequest = { showMenuForId = null },
+            // Place the menu outside the side menu, aligned to the selected row's top
+            offset = DpOffset(x = sideMenuWidth, y = menuYOffsetDp),
+            containerColor = menuBg
+        ) {
+            if (menuNode != null) {
+                // 1) Rename (for all except root)
+                if (menuNode.id != root.id) {
+                    DropdownMenuItem(
+                        text = { Text("Rename", color = menuTint) },
+                        onClick = {
+                            showMenuForId = null
+                            nameDialogKind = NameDialogKind.Rename
+                            nameDialogTargetId = menuNode.id
+                            nameDialogInitial = menuNode.name
+                        }
+                    )
+                }
+
+                // 2) Add subfolder (folders only)
+                if (menuNode is FsNode.Folder) {
+                    DropdownMenuItem(
+                        text = { Text("Add Folder", color = menuTint) },
+                        onClick = {
+                            showMenuForId = null
+                            nameDialogKind = NameDialogKind.CreateFolder
+                            nameDialogParentId = menuNode.id
+                            nameDialogInitial = ""
+                        }
+                    )
+                    // 3) Add note (folders only)
+                    DropdownMenuItem(
+                        text = { Text("Add Note", color = menuTint) },
+                        onClick = {
+                            showMenuForId = null
+                            nameDialogKind = NameDialogKind.CreateNote
+                            nameDialogParentId = menuNode.id
+                            nameDialogInitial = ""
+                        }
+                    )
+                }
+
+                // Existing actions for non-root
+                if (menuNode.id != root.id) {
+                    DropdownMenuItem(
+                        text = { Text("Move…", color = menuTint) },
+                        onClick = {
+                            showMenuForId = null
+                            moveSourceId = menuNode.id
+                            showMovePicker = true
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete", color = menuTint) },
+                        onClick = {
+                            showMenuForId = null
+                            FsRepository.deleteNode(menuNode.id)
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    // Create/Rename dialog
+    nameDialogKind?.let { kind ->
+        NameDialog(
+            title = when (kind) {
+                NameDialogKind.CreateFolder -> "New Folder"
+                NameDialogKind.CreateNote -> "New Note"
+                NameDialogKind.Rename -> "Rename"
+            },
+            initial = nameDialogInitial,
+            onDismiss = {
+                nameDialogKind = null
+                nameDialogParentId = null
+                nameDialogTargetId = null
+                nameDialogInitial = ""
+            },
+            onConfirm = { text ->
+                when (kind) {
+                    NameDialogKind.CreateFolder -> {
+                        val parentId = nameDialogParentId ?: root.id
+                        FsRepository.createFolder(parentId, text)
+                        if (!expanded.contains(parentId)) expanded.add(parentId)
+                    }
+                    NameDialogKind.CreateNote -> {
+                        val parentId = nameDialogParentId ?: root.id
+                        val note = FsRepository.createNote(parentId, text)
+                        if (!expanded.contains(parentId)) expanded.add(parentId)
+                        note?.let { FsRepository.selectNote(it.id); onNoteOpened() }
+                    }
+                    NameDialogKind.Rename -> {
+                        val targetId = nameDialogTargetId
+                        if (targetId != null) FsRepository.renameNode(targetId, text)
+                    }
+                }
+                nameDialogKind = null
+                nameDialogParentId = null
+                nameDialogTargetId = null
+                nameDialogInitial = ""
+            }
+        )
+    }
+
+    // Move picker
+    if (showMovePicker && moveSourceId != null) {
+        MovePickerDialog(
+            sourceId = moveSourceId!!,
+            onDismiss = { showMovePicker = false; moveSourceId = null },
+            onMoveTo = { targetFolderId ->
+                val moved = FsRepository.moveNode(moveSourceId!!, targetFolderId)
+                if (moved && !expanded.contains(targetFolderId)) expanded.add(targetFolderId)
+                showMovePicker = false
+                moveSourceId = null
+            },
+            iconTint = iconTint
+        )
+    }
+}
+
+/**
+ * A simple wrapper that reports the top Y of its content in window space.
+ */
+@Composable
+private fun RowAnchor(
+    nodeId: String,
+    onTopInWindow: (Float) -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { coords ->
+                onTopInWindow(coords.positionInWindow().y)
+            }
+    ) {
+        content()
     }
 }
 
@@ -447,15 +545,4 @@ private fun flattenTree(
     }
     walk(root, 0)
     return out
-}
-
-private fun findParentFolderId(nodeId: String): String {
-    fun search(folder: FsNode.Folder): String? {
-        folder.children.forEach { child ->
-            if (child.id == nodeId) return folder.id
-            if (child is FsNode.Folder) search(child)?.let { return it }
-        }
-        return null
-    }
-    return search(FsRepository.root) ?: FsRepository.root.id
 }
