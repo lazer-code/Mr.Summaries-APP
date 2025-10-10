@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,27 +23,39 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Undo
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.mrsummaries_app.note.AppIcons
 import com.example.mrsummaries_app.note.CostumePen
 import com.example.mrsummaries_app.note.DrawingTool
 
+// Calculate contrasting color (black or white) based on background color
+@Composable
+fun contrastOn(backgroundColor: Color): Color {
+    // Calculate relative luminance using RGB components
+    val red = backgroundColor.red
+    val green = backgroundColor.green
+    val blue = backgroundColor.blue
+
+    // Using simplified luminance formula (perceived brightness)
+    val brightness = (0.299 * red + 0.587 * green + 0.114 * blue)
+
+    // Return black for light backgrounds, white for dark backgrounds
+    return if (brightness > 0.5f) Color.Black else Color.White
+}
+
 private val BrandTeal = Color(0xFF003153)
 
 /**
- * Editor toolbar above the canvas. Background:
- * - Light mode: #003153 (brand)
- * - Dark mode: translucent white
- * Foreground (icons/text) auto-contrasts with the background.
+ * Editor toolbar above the canvas.
  */
 @Composable
 fun HoverBar(
@@ -60,57 +72,57 @@ fun HoverBar(
     onSelectIndex: (Int) -> Unit,
     onAddCostume: () -> Unit,
     onLongPressIndex: (Int) -> Unit,
-    onPenWidthChange: (Float) -> Unit,
-    onEraserSizeChange: (Float) -> Unit,
-    showPenSize: Boolean,
-    showEraserSize: Boolean,
-    setShowPenSize: (Boolean) -> Unit,
-    setShowEraserSize: (Boolean) -> Unit
+    onPenWidthChange: (Float) -> Unit = {},
+    onEraserSizeChange: (Float) -> Unit = {},
+    showPenSize: Boolean = false,
+    showEraserSize: Boolean = false,
+    setShowPenSize: (Boolean) -> Unit = {},
+    setShowEraserSize: (Boolean) -> Unit = {}
 ) {
     val isDark = isSystemInDarkTheme()
-    val backgroundColor = if (!isDark) BrandTeal else Color(0xCCFFFFFF)
-    val tint = contrastOn(backgroundColor)
+    val bg = if (!isDark) BrandTeal else MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+    val tint = contrastOn(bg)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(color = backgroundColor, shape = MaterialTheme.shapes.medium)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .heightIn(min = 56.dp) // was smaller; ensure enough room for 40dp circular buttons
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (drawingTool == DrawingTool.WRITE) {
-            FilledTonalIconButton(onClick = { onToolChange(DrawingTool.WRITE) }) {
-                Icon(AppIcons.Pen, contentDescription = "Write", tint = tint)
-            }
-        } else {
-            IconButton(onClick = { onToolChange(DrawingTool.WRITE) }) {
-                Icon(AppIcons.Pen, contentDescription = "Write", tint = tint)
-            }
-        }
-
-        if (drawingTool == DrawingTool.ERASE) {
-            FilledTonalIconButton(onClick = { onToolChange(DrawingTool.ERASE) }) {
-                Icon(AppIcons.Eraser, contentDescription = "Erase", tint = tint)
-            }
-        } else {
-            IconButton(onClick = { onToolChange(DrawingTool.ERASE) }) {
-                Icon(AppIcons.Eraser, contentDescription = "Erase", tint = tint)
-            }
-        }
-
-        IconButton(onClick = onUndo) { Icon(Icons.Filled.Undo, contentDescription = "Undo", tint = tint) }
-        IconButton(onClick = onRedo) { Icon(Icons.Filled.Redo, contentDescription = "Redo", tint = tint) }
+        // Tool toggle: Pen
+        ToolCircle(
+            selected = drawingTool == DrawingTool.WRITE,
+            tint = tint,
+            content = { Icon(AppIcons.Pen, contentDescription = "Pen", tint = tint) },
+            onClick = { onToolChange(DrawingTool.WRITE) }
+        )
+        // Tool toggle: Eraser
+        ToolCircle(
+            selected = drawingTool == DrawingTool.ERASE,
+            tint = tint,
+            content = { Icon(AppIcons.Eraser, contentDescription = "Eraser", tint = tint) },
+            onClick = { onToolChange(DrawingTool.ERASE) }
+        )
 
         // Divider
         Box(
             modifier = Modifier
-                .height(28.dp)
-                .width(1.dp)
+                .size(width = 1.dp, height = 28.dp)
                 .background(tint.copy(alpha = 0.3f))
         )
 
-        // Swatches between Redo and +, horizontally scrollable, fills available space
+        // Undo / Redo
+        IconButton(onClick = onUndo, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Filled.Undo, contentDescription = "Undo", tint = tint)
+        }
+        IconButton(onClick = onRedo, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Filled.Redo, contentDescription = "Redo", tint = tint)
+        }
+
+        // Color swatches — horizontally scrollable, fills remaining space
         ColorPaletteRow(
             modifier = Modifier.weight(1f, fill = true),
             pens = costumePens,
@@ -120,16 +132,84 @@ fun HoverBar(
             chipBorderColor = tint
         )
 
-        // "+" pinned right — always visible
-        IconButton(onClick = onAddCostume) {
+        // Add preset
+        IconButton(onClick = onAddCostume, modifier = Modifier.size(40.dp)) {
             Icon(Icons.Filled.Add, contentDescription = "Add preset", tint = tint)
         }
 
+        // Optional steppers
         if (showPenSize) {
             StepperRow("Pen", currentStrokeWidthDp, 1f, 24f, onPenWidthChange, tint)
         }
         if (showEraserSize) {
             StepperRow("Eraser", eraserSizeDp, 8f, 64f, onEraserSizeChange, tint)
+        }
+    }
+}
+
+@Composable
+private fun ToolCircle(
+    selected: Boolean,
+    tint: Color,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val bg = if (selected) tint.copy(alpha = 0.15f) else Color.Transparent
+    val borderWidth = if (selected) 2.dp else 1.dp
+    val borderColor = if (selected) tint else tint.copy(alpha = 0.4f)
+
+    Surface(
+        shape = CircleShape,
+        color = bg,
+        tonalElevation = if (selected) 2.dp else 0.dp,
+        shadowElevation = if (selected) 0.dp else 0.dp,
+        modifier = Modifier
+            .size(40.dp)
+            .border(borderWidth, borderColor, CircleShape)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorPaletteRow(
+    modifier: Modifier = Modifier,
+    pens: List<CostumePen>,
+    selectedIndex: Int,
+    onSelectIndex: (Int) -> Unit,
+    onLongPressIndex: (Int) -> Unit,
+    chipBorderColor: Color
+) {
+    LazyRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        itemsIndexed(pens, key = { i, p -> p.hashCode() + i }) { index, pen ->
+            val selected = index == selectedIndex
+            val borderWidth = if (selected) 2.dp else 1.dp
+            val borderColor = if (selected) contrastOn(pen.color) else chipBorderColor.copy(alpha = 0.4f)
+
+            Surface(
+                shape = CircleShape,
+                color = pen.color,
+                modifier = Modifier
+                    .size(28.dp)
+                    .border(borderWidth, borderColor, CircleShape)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .combinedClickable(
+                            onClick = { onSelectIndex(index) },
+                            onLongClick = { onLongPressIndex(index) }
+                        )
+                )
+            }
         }
     }
 }
@@ -150,44 +230,6 @@ private fun StepperRow(
         }
         IconButton(onClick = { onChange((value + 1f).coerceIn(min, max)) }) {
             Icon(Icons.Filled.Add, contentDescription = "Increase $label", tint = tint)
-        }
-    }
-}
-
-@Composable
-private fun ColorPaletteRow(
-    modifier: Modifier,
-    pens: List<CostumePen>,
-    selectedIndex: Int,
-    onSelectIndex: (Int) -> Unit,
-    onLongPressIndex: (Int) -> Unit,
-    chipBorderColor: Color
-) {
-    LazyRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        itemsIndexed(pens, key = { _, pen -> "${pen.color.value}-${pen.strokeWidthDp}" }) { index, pen ->
-            val selected = index == selectedIndex
-            val innerRadius = (pen.strokeWidthDp.coerceIn(1f, 24f) / 24f) * 10f
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(32.dp)
-                    .then(if (selected) Modifier.border(2.dp, chipBorderColor, CircleShape) else Modifier)
-                    .background(pen.color, shape = CircleShape)
-                    .combinedClickable(
-                        onClick = { onSelectIndex(index) },
-                        onLongClick = { onLongPressIndex(index) }
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(innerRadius.dp.coerceAtLeast(4.dp))
-                        .background(contrastOn(pen.color).copy(alpha = 0.9f), shape = CircleShape)
-                )
-            }
         }
     }
 }
