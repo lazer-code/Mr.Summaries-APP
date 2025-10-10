@@ -18,15 +18,22 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.cancel
+import kotlin.math.max
 
 enum class DrawingTool { WRITE, ERASE }
 
 /**
  * StylusDrawingCanvas detects SPen button, tracks hover position, and renders tip indicators.
- * Updated: writing is constrained to canvas bounds. Leaving the bounds ends the current stroke.
- * Re-entering starts a new stroke.
+ *
+ * Changes in this file:
+ * - Adds onCreateNextPage callback which is invoked when a committed write stroke reaches the
+ *   bottom of the canvas (so the host can create a new page). The threshold is configurable
+ *   via nextPageTriggerDp.
+ *
+ * Note: positions reported here are within the Canvas coordinate space (0..size.width, 0..size.height).
  */
 @Composable
 fun StylusDrawingCanvas(
@@ -37,12 +44,33 @@ fun StylusDrawingCanvas(
     currentColor: Color,
     currentStrokeWidthDp: Float,
     eraserSizeDp: Float,
+    minPointDistanceDp: Float = 2f,
+    batchSize: Int = 3,
+    spatialIndex: SpatialIndex? = null,
+    nextPageTriggerDp: Float = 64f, // distance from bottom to trigger creating next page
     onCurrentPathChange: (List<Offset>) -> Unit,
     onPathAdded: (List<Offset>) -> Unit,
     onErasePath: (Int) -> Unit,
+    onCreateNextPage: () -> Unit = {},
     onStylusButtonChange: (Boolean) -> Unit = {}
 ) {
     var hoverPosition by remember { mutableStateOf<Offset?>(null) }
+
+    // up-to-date values for long-running pointer loop
+    val currentDrawingTool by rememberUpdatedState(drawingTool)
+    val currentPaths by rememberUpdatedState(paths)
+
+    val density = LocalDensity.current
+    val eraserSizePx = with(density) { eraserSizeDp.dp.toPx() }
+    val minPointDistancePx = with(density) { minPointDistanceDp.dp.toPx() }
+    val minPointDistanceSq = minPointDistancePx * minPointDistancePx
+    val safeBatchSize = max(1, batchSize)
+    val nextPageTriggerPx = with(density) { nextPageTriggerDp.dp.toPx() }
+
+    // If a spatial index is provided, ensure its cell size is reasonable for queries
+    LaunchedEffect(spatialIndex, eraserSizePx) {
+        spatialIndex?.setCellSize(max(eraserSizePx, 32f))
+    }
 
     Canvas(
         modifier = modifier
@@ -74,81 +102,108 @@ fun StylusDrawingCanvas(
                     }
                 }
             }
-            // NOTE: avoid including `paths` here as a key to prevent cancelling pointer coroutine
-            // every time drawing data changes (that caused freezes). Depend on stable inputs only.
-            .pointerInput(drawingTool, eraserSizeDp) {
-                // Keep the pointer-handling loop robust to cancellation:
+            // pointerInput keyed only by eraser size (other state read via rememberUpdatedState)
+            .pointerInput(eraserSizeDp) {
                 try {
                     while (true) {
                         awaitPointerEventScope {
                             val event = awaitPointerEvent(PointerEventPass.Initial)
-                            // Find a stylus down pointer (pressed)
                             val stylusDown = event.changes.firstOrNull { it.type == PointerType.Stylus && it.pressed }
                             if (stylusDown != null) {
-                                // Helper to determine if a point is inside this canvas
                                 fun inBounds(p: Offset): Boolean =
-                                    p.x >= 0f && p.y >= 0f && p.x <= size.width.toFloat() && p.y <= size.height.toFloat()
+                                    p.x >= 0f && p.y >= 0f && p.x <= size.width && p.y <= size.height
 
-                                // start a new temporary path only if the press is inside bounds
-                                var tempPath = if (inBounds(stylusDown.position)) listOf(stylusDown.position) else emptyList()
-                                onCurrentPathChange(tempPath)
+                                // mutable buffer to avoid allocations per event
+                                val buffer = ArrayList<Offset>()
+                                var lastPoint: Offset? = null
 
-                                // Track this pointer id for the drag loop
+                                if (inBounds(stylusDown.position)) {
+                                    buffer += stylusDown.position
+                                    lastPoint = stylusDown.position
+                                }
+                                if (buffer.isNotEmpty()) onCurrentPathChange(buffer.toList())
+
                                 val downId = stylusDown.id
+                                var prevPressed = true
 
-                                // Drag loop for this pointer until release or pointer disappears
                                 while (true) {
                                     val dragEvent = awaitPointerEvent(PointerEventPass.Initial)
                                     val dragPointer = dragEvent.changes.find { it.id == downId }
-                                    if (dragPointer == null || !dragPointer.pressed) {
-                                        // pointer ended or no longer pressed -> finish
-                                        break
-                                    }
+
+                                    if (dragPointer == null) break
+
+                                    val curPressed = dragPointer.pressed
+                                    if (prevPressed && !curPressed) break
+                                    prevPressed = curPressed
+                                    if (!curPressed) break
 
                                     val pos = dragPointer.position
                                     val inside = inBounds(pos)
 
-                                    if (drawingTool == DrawingTool.ERASE) {
+                                    if (currentDrawingTool == DrawingTool.ERASE) {
                                         if (inside) {
-                                            val radius = eraserSizeDp.dp.toPx()
-                                            val eraseIndex = paths.indexOfFirst { stroke ->
-                                                stroke.points.any { p -> (p - pos).getDistance() < radius }
+                                            val radius = eraserSizePx
+                                            var eraseIndex = -1
+                                            val candidateStrokeIndices = spatialIndex?.query(pos, radius)
+                                                ?: (0 until currentPaths.size).toSet()
+                                            for (si in candidateStrokeIndices) {
+                                                val stroke = currentPaths.getOrNull(si) ?: continue
+                                                val rSq = radius * radius
+                                                if (stroke.points.any { p ->
+                                                        val dx = p.x - pos.x
+                                                        val dy = p.y - pos.y
+                                                        dx * dx + dy * dy < rSq
+                                                    }) {
+                                                    eraseIndex = si
+                                                    break
+                                                }
                                             }
                                             if (eraseIndex != -1) {
                                                 onErasePath(eraseIndex)
                                             }
+                                            buffer.clear()
+                                            buffer += pos
+                                            lastPoint = pos
+                                            onCurrentPathChange(buffer.toList())
+                                        } else {
+                                            buffer.clear()
+                                            lastPoint = null
+                                            onCurrentPathChange(emptyList())
                                         }
-                                        // Keep showing the eraser preview (no path accumulation)
-                                        tempPath = if (inside) listOf(pos) else emptyList()
-                                        onCurrentPathChange(tempPath)
                                     } else { // WRITE
                                         if (inside) {
-                                            tempPath = when {
-                                                tempPath.isEmpty() -> listOf(pos)
-                                                else -> tempPath + listOf(pos)
+                                            val shouldAdd = lastPoint == null ||
+                                                    ((pos.x - lastPoint.x).let { it * it } + (pos.y - lastPoint.y).let { it * it }) >= minPointDistanceSq
+                                            if (shouldAdd) {
+                                                buffer += pos
+                                                lastPoint = pos
+                                                if (buffer.size % safeBatchSize == 0) {
+                                                    onCurrentPathChange(buffer.toList())
+                                                }
                                             }
-                                            onCurrentPathChange(tempPath)
                                         } else {
-                                            // left the canvas; finish current stroke
                                             break
                                         }
                                     }
                                 } // end drag loop
 
-                                // If we have a drawn write path, commit it
-                                if (drawingTool == DrawingTool.WRITE && tempPath.isNotEmpty()) {
-                                    onPathAdded(tempPath)
+                                // Commit write path if any
+                                if (currentDrawingTool == DrawingTool.WRITE && buffer.isNotEmpty()) {
+                                    onPathAdded(buffer.toList())
+
+                                    // If the stroke reached near the bottom of this canvas, request creating a next page
+                                    val lastY = buffer.last().y
+                                    if (lastY >= size.height - nextPageTriggerPx) {
+                                        onCreateNextPage()
+                                    }
                                 }
-                                // Clear any in-progress path indicator
                                 onCurrentPathChange(emptyList())
                             } // end stylusDown handling
                         } // end awaitPointerEventScope
-                    } // end main while
+                    } // end while
                 } finally {
-                    // Ensure we always clear in-progress drawing state when coroutine is cancelled
                     onCurrentPathChange(emptyList())
-                    // Also ensure stylus button state isn't stuck
-                    onStylusButtonChange(false)
+                    // avoid forcing stylus button state false here
                 }
             }
     ) {
@@ -167,7 +222,7 @@ fun StylusDrawingCanvas(
                     style = Stroke(width = widthPx, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
             } else if (pts.size == 1) {
-                drawCircle(stroke.color, radius = maxOf(3.dp.toPx(), widthPx / 2f), center = pts[0])
+                drawCircle(stroke.color, radius = max(3.dp.toPx(), widthPx / 2f), center = pts[0])
             }
         }
 
@@ -187,7 +242,7 @@ fun StylusDrawingCanvas(
                         style = Stroke(width = currentStrokeWidthDp.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
                 }
-                drawCircle(color = currentColor, radius = maxOf(3.dp.toPx(), currentStrokeWidthDp.dp.toPx() / 2f), center = tip)
+                drawCircle(color = currentColor, radius = max(3.dp.toPx(), currentStrokeWidthDp.dp.toPx() / 2f), center = tip)
             } else {
                 drawCircle(color = Color(0x66000000), radius = eraserRadius, center = tip, style = Stroke(width = 2.dp.toPx()))
                 drawCircle(color = Color(0x11000000), radius = eraserRadius, center = tip)
@@ -195,7 +250,7 @@ fun StylusDrawingCanvas(
         } else {
             hoverPosition?.let { tip ->
                 if (drawingTool == DrawingTool.WRITE) {
-                    drawCircle(color = currentColor, radius = maxOf(3.dp.toPx(), currentStrokeWidthDp.dp.toPx() / 2f), center = tip)
+                    drawCircle(color = currentColor, radius = max(3.dp.toPx(), currentStrokeWidthDp.dp.toPx() / 2f), center = tip)
                 } else {
                     drawCircle(color = Color(0x66000000), radius = eraserRadius, center = tip, style = Stroke(width = 2.dp.toPx()))
                     drawCircle(color = Color(0x11000000), radius = eraserRadius, center = tip)

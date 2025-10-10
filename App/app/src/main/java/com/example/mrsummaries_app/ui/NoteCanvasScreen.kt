@@ -1,8 +1,16 @@
+@file:OptIn(ExperimentalComposeUiApi::class)
+
 package com.example.mrsummaries_app.ui
 
+import android.view.MotionEvent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,42 +19,56 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.mrsummaries_app.note.ColorPickerDialog
 import com.example.mrsummaries_app.note.CostumePen
 import com.example.mrsummaries_app.note.DrawingTool
-import com.example.mrsummaries_app.note.PenPreferences
+import com.example.mrsummaries_app.note.SpatialIndex
 import com.example.mrsummaries_app.note.StrokePath
 import com.example.mrsummaries_app.note.StylusDrawingCanvas
+import com.example.mrsummaries_app.note.PenPreferences
 import com.example.mrsummaries_app.ui.persistence.NoteContentStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 /**
- * Full editor integration for a note.
- * - Per-note drawing state is provided via [store].
- * - Pen presets and sizes are persisted globally via PenPreferences.
- * - Drawing content is persisted per note via NoteContentStore.
+ * NoteCanvasScreen with infinite vertical pages via LazyColumn.
+ * Shows HoverBar (pen/eraser/undo/redo/color) at the top of the editor.
+ *
+ * topBarInsetDp lets the caller push the bar down (e.g., when the side-menu is hidden and
+ * the floating hamburger button is visible at the top-left).
+ *
+ * Scrolling requirement:
+ * - Only fingers (TOOL_TYPE_FINGER) can scroll the list of pages.
+ * - Stylus (TOOL_TYPE_STYLUS) will NOT scroll; it is used for drawing/erasing only.
+ *   We achieve this by dynamically toggling LazyColumn.userScrollEnabled based on the active tool type.
  */
 @Composable
 fun NoteCanvasScreen(
     noteId: String,
     noteName: String,
-    store: NoteStore
+    store: NoteStore,
+    perfMinPointDistanceDp: Float = 2f,
+    perfBatchSize: Int = 3,
+    perfSpatialIndexEnabled: Boolean = true,
+    topBarInsetDp: Dp = 8.dp
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Tool state
     var eraseToggled by remember { mutableStateOf(false) }
     var spenPressed by remember { mutableStateOf(false) }
     val drawingTool = if (spenPressed || eraseToggled) DrawingTool.ERASE else DrawingTool.WRITE
 
-    // Global pen settings/presets
     var currentColor by remember { mutableStateOf(Color.Blue) }
     var currentStrokeWidthDp by remember { mutableStateOf(6f) }
     var eraserSizeDp by remember { mutableStateOf(20f) }
@@ -61,49 +83,9 @@ fun NoteCanvasScreen(
         )
     }
 
-    // Load global prefs and initial pen once
-    LaunchedEffect(Unit) {
-        runCatching { PenPreferences.loadCostumePens(context) }.getOrNull()?.let { loaded ->
-            if (loaded.isNotEmpty()) costumePens = loaded
-        }
-        runCatching { PenPreferences.loadPenSettings(context) }.getOrNull()?.let { s ->
-            currentStrokeWidthDp = s.penWidthDp
-            eraserSizeDp = s.eraserSizeDp
-        }
-        if (store.paths.isEmpty() && costumePens.isNotEmpty()) {
-            currentColor = costumePens.first().color
-            currentStrokeWidthDp = costumePens.first().strokeWidthDp
-        }
-    }
-
-    // Persist global pen settings and presets on change
-    LaunchedEffect(costumePens) {
-        runCatching { PenPreferences.saveCostumePens(context, costumePens) }
-    }
-    LaunchedEffect(currentStrokeWidthDp, eraserSizeDp) {
-        runCatching { PenPreferences.savePenSettings(context, currentStrokeWidthDp, eraserSizeDp) }
-    }
-
-    // Load per-note drawing content once for this note
-    LaunchedEffect(noteId) {
-        val loaded = runCatching { NoteContentStore.load(context, noteId) }.getOrNull()
-        if (loaded != null) {
-            store.paths = loaded
-            store.currentPath = emptyList()
-            store.undonePaths = emptyList()
-        }
-    }
-
-    // Color picker state (global)
-    var showColorPicker by remember { mutableStateOf(false) }
-    var pickerPurpose by remember { mutableStateOf(PickerPurpose.AddPreset) }
-    var editingIndex by remember { mutableStateOf<Int?>(null) }
-
-    // Selected swatch index based on color+width
     val selectedIndex = remember(currentColor, currentStrokeWidthDp, costumePens) {
         costumePens.indexOfFirst { it.color == currentColor && it.strokeWidthDp == currentStrokeWidthDp }
     }
-
     fun selectPenAt(index: Int) {
         if (index in costumePens.indices) {
             val pen = costumePens[index]
@@ -112,68 +94,57 @@ fun NoteCanvasScreen(
         }
     }
 
-    fun addOrMoveColorToFront(chosen: Color) {
-        val existingIndex = costumePens.indexOfFirst { it.color == chosen }
-        val newList = if (existingIndex >= 0) {
-            val updated = costumePens.toMutableList()
-            val old = updated.removeAt(existingIndex)
-            updated.add(0, old.copy(color = chosen))
-            updated
-        } else {
-            listOf(CostumePen(chosen, currentStrokeWidthDp)) + costumePens
-        }
-        costumePens = newList
-        if (newList.isNotEmpty()) selectPenAt(0)
+    LaunchedEffect(costumePens) {
+        runCatching { PenPreferences.saveCostumePens(context, costumePens) }
+    }
+    LaunchedEffect(currentStrokeWidthDp, eraserSizeDp) {
+        runCatching { PenPreferences.savePenSettings(context, currentStrokeWidthDp, eraserSizeDp) }
     }
 
-    fun deletePresetAt(index: Int) {
-        if (index in costumePens.indices && costumePens.size > 1) {
-            val newList = costumePens.toMutableList()
-            newList.removeAt(index)
-            costumePens = newList
-            val newSel = index.coerceAtMost(newList.lastIndex).coerceAtLeast(0)
-            if (newList.isNotEmpty()) selectPenAt(newSel)
+    LaunchedEffect(noteId) {
+        val loaded = runCatching { NoteContentStore.load(context, noteId) }.getOrNull()
+        if (loaded != null) {
+            store.pages = listOf(loaded)
+            store.currentPath = emptyList()
+            store.undonePaths = emptyList()
         }
+    }
+
+    val density = LocalDensity.current
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+    val pageHeightDp = screenHeightDp.dp
+    val initialCellSizePx = with(density) { max(eraserSizeDp.dp.toPx(), 48f) }
+    val spatialIndex = remember { SpatialIndex(cellSizePx = initialCellSizePx) }
+
+    LaunchedEffect(store.pages, eraserSizeDp) {
+        spatialIndex.setCellSize(with(density) { max(eraserSizeDp.dp.toPx(), 48f) })
+        spatialIndex.rebuild(store.pages.flatten())
     }
 
     fun persistNote() {
         scope.launch {
             withContext(Dispatchers.IO) {
-                NoteContentStore.save(context, noteId, store.paths)
+                NoteContentStore.save(context, noteId, store.pages.flatten())
             }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        StylusDrawingCanvas(
-            modifier = Modifier.fillMaxSize(),
-            drawingTool = drawingTool,
-            paths = store.paths,
-            currentPath = store.currentPath,
-            currentColor = currentColor,
-            currentStrokeWidthDp = currentStrokeWidthDp,
-            eraserSizeDp = eraserSizeDp,
-            onCurrentPathChange = { store.currentPath = it },
-            onPathAdded = { path ->
-                store.paths = store.paths + listOf(StrokePath(path, currentColor, currentStrokeWidthDp))
-                store.undonePaths = emptyList()
-                persistNote()
-            },
-            onErasePath = { index ->
-                if (index in store.paths.indices) {
-                    store.undonePaths = store.undonePaths + listOf(store.paths[index])
-                    store.paths = store.paths.toMutableList().apply { removeAt(index) }
-                    persistNote()
-                }
-            },
-            onStylusButtonChange = { pressed -> spenPressed = pressed }
-        )
+    if (store.pages.isEmpty()) {
+        store.pages = listOf(emptyList())
+    }
 
-        // Import from ui package
+    val nextPageTriggerDp = 64f
+    val barHeightDp = 48.dp
+
+    // Allow scrolling only when the active pointer is a finger
+    var listScrollEnabled by remember { mutableStateOf(true) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Editing bar (HoverBar) shown at the top; inset when necessary
         HoverBar(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 24.dp),
+                .padding(top = topBarInsetDp),
             drawingTool = drawingTool,
             currentColor = currentColor,
             currentStrokeWidthDp = currentStrokeWidthDp,
@@ -182,80 +153,123 @@ fun NoteCanvasScreen(
             selectedIndex = selectedIndex,
             onToolChange = { tool -> eraseToggled = tool == DrawingTool.ERASE && !eraseToggled },
             onUndo = {
-                if (store.paths.isNotEmpty()) {
-                    store.undonePaths = store.undonePaths + listOf(store.paths.last())
-                    store.paths = store.paths.dropLast(1)
+                val lastPage = store.pages.indexOfLast { it.isNotEmpty() }
+                if (lastPage != -1) {
+                    val newPages = store.pages.toMutableList()
+                    val lastStroke = newPages[lastPage].last()
+                    store.undonePaths = store.undonePaths + lastStroke
+                    newPages[lastPage] = newPages[lastPage].dropLast(1)
+                    store.pages = newPages
                     persistNote()
                 }
             },
             onRedo = {
                 if (store.undonePaths.isNotEmpty()) {
-                    store.paths = store.paths + listOf(store.undonePaths.last())
+                    val stroke = store.undonePaths.last()
+                    val newPages = store.pages.toMutableList()
+                    newPages[newPages.lastIndex] = newPages.last() + stroke
+                    store.pages = newPages
                     store.undonePaths = store.undonePaths.dropLast(1)
                     persistNote()
                 }
             },
             onSelectIndex = { i -> selectPenAt(i) },
-            onAddCostume = {
-                pickerPurpose = PickerPurpose.AddPreset
-                showColorPicker = true
-                editingIndex = null
-            },
-            onLongPressIndex = { i ->
-                editingIndex = i
-                pickerPurpose = PickerPurpose.EditPreset
-                showColorPicker = true
-            },
+            onAddCostume = { /* optional color picker */ },
+            onLongPressIndex = { _ -> /* optional edit preset */ },
             onPenWidthChange = { width -> currentStrokeWidthDp = width.coerceIn(1f, 24f) },
             onEraserSizeChange = { size -> eraserSizeDp = size.coerceIn(8f, 64f) },
             showPenSize = false,
             showEraserSize = false,
-            setShowPenSize = { /* no-op */ },
-            setShowEraserSize = { /* no-op */ }
+            setShowPenSize = {},
+            setShowEraserSize = {}
         )
-    }
 
-    if (showColorPicker) {
-        val initial = when (pickerPurpose) {
-            PickerPurpose.AddPreset -> currentColor
-            PickerPurpose.EditPreset -> editingIndex?.let { idx ->
-                costumePens.getOrNull(idx)?.color ?: currentColor
-            } ?: currentColor
-        }
-        val canDeleteInDialog = pickerPurpose == PickerPurpose.EditPreset && costumePens.size > 1
-
-        ColorPickerDialog(
-            initialColor = initial,
-            showDelete = canDeleteInDialog,
-            onDelete = {
-                editingIndex?.let { idx -> deletePresetAt(idx) }
-                showColorPicker = false
-                editingIndex = null
-            },
-            onDismiss = {
-                showColorPicker = false
-                editingIndex = null
-            },
-            onConfirm = { color ->
-                when (pickerPurpose) {
-                    PickerPurpose.AddPreset -> addOrMoveColorToFront(color)
-                    PickerPurpose.EditPreset -> {
-                        editingIndex?.let { idx ->
-                            if (idx in costumePens.indices) {
-                                val updated = costumePens.toMutableList()
-                                val old = updated[idx]
-                                updated[idx] = old.copy(color = color)
-                                costumePens = updated
-                                if (selectedIndex == idx) currentColor = color
-                            }
+        // Pages list below the bar (account for inset + bar height)
+        LazyColumn(
+            userScrollEnabled = listScrollEnabled,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = topBarInsetDp + barHeightDp)
+                // Detect active tool type and allow scroll only for fingers
+                .pointerInteropFilter { ev ->
+                    // Determine if any finger or stylus pointers are present
+                    var hasFinger = false
+                    var hasStylus = false
+                    for (i in 0 until ev.pointerCount) {
+                        when (ev.getToolType(i)) {
+                            MotionEvent.TOOL_TYPE_FINGER -> hasFinger = true
+                            MotionEvent.TOOL_TYPE_STYLUS -> hasStylus = true
                         }
                     }
+                    when (ev.actionMasked) {
+                        MotionEvent.ACTION_DOWN,
+                        MotionEvent.ACTION_POINTER_DOWN,
+                        MotionEvent.ACTION_HOVER_MOVE,
+                        MotionEvent.ACTION_MOVE -> {
+                            // Enable scrolling if a finger is involved; disable when only stylus is present
+                            listScrollEnabled = hasFinger && !hasStylus
+                        }
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_POINTER_UP,
+                        MotionEvent.ACTION_CANCEL -> {
+                            // Reset to allow finger scrolling by default when no pointers remain
+                            listScrollEnabled = true
+                        }
+                    }
+                    // Do not consume so stylus events still reach the canvases for drawing
+                    false
+                },
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            itemsIndexed(store.pages, key = { index, _ -> index }) { pageIndex, pagePaths ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(pageHeightDp)
+                ) {
+                    StylusDrawingCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        drawingTool = drawingTool,
+                        paths = pagePaths,
+                        currentPath = store.currentPath,
+                        currentColor = currentColor,
+                        currentStrokeWidthDp = currentStrokeWidthDp,
+                        eraserSizeDp = eraserSizeDp,
+                        minPointDistanceDp = perfMinPointDistanceDp,
+                        batchSize = perfBatchSize,
+                        spatialIndex = if (perfSpatialIndexEnabled) spatialIndex else null,
+                        nextPageTriggerDp = nextPageTriggerDp,
+                        onCurrentPathChange = { store.currentPath = it },
+                        onPathAdded = { path ->
+                            val newPages = store.pages.toMutableList()
+                            val updatedPage = newPages.getOrNull(pageIndex)?.toMutableList() ?: mutableListOf()
+                            updatedPage.add(StrokePath(path, currentColor, currentStrokeWidthDp))
+                            newPages[pageIndex] = updatedPage
+                            store.pages = newPages
+                            store.undonePaths = emptyList()
+                            persistNote()
+                        },
+                        onErasePath = { index ->
+                            val newPages = store.pages.toMutableList()
+                            val pageList = newPages.getOrNull(pageIndex)?.toMutableList() ?: return@StylusDrawingCanvas
+                            if (index in pageList.indices) {
+                                val removed = pageList[index]
+                                pageList.removeAt(index)
+                                newPages[pageIndex] = pageList
+                                store.undonePaths = store.undonePaths + listOf(removed)
+                                store.pages = newPages
+                                persistNote()
+                            }
+                        },
+                        onCreateNextPage = {
+                            if (pageIndex == store.pages.lastIndex) {
+                                store.pages = store.pages + listOf(emptyList())
+                            }
+                        },
+                        onStylusButtonChange = { pressed -> spenPressed = pressed }
+                    )
                 }
-                showColorPicker = false
-                editingIndex = null
             }
-        )
+        }
     }
 }
-
-private enum class PickerPurpose { AddPreset, EditPreset }
