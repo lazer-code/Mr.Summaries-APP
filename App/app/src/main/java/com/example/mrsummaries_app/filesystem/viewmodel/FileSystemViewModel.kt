@@ -10,6 +10,7 @@ import com.example.mrsummaries_app.filesystem.repository.FileSystemRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -28,34 +29,33 @@ class FileSystemViewModel : ViewModel() {
     // Track expanded state of folders
     val expandedFolders = mutableStateMapOf<String, Boolean>()
 
-    // Current items in the viewed folder
-    val currentFolderItems: StateFlow<List<FileSystemItem>> = _currentFolderId
-        .map { folderId ->
-            repository.getItemsInFolder(folderId).stateIn(
-                viewModelScope,
-                SharingStarted.Eagerly,
-                emptyList()
-            ).value
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    // Current folder details
-    val currentFolder: StateFlow<Folder?> = _currentFolderId
-        .map { folderId ->
-            repository.getFolder(folderId)
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    // Path to current folder (breadcrumb)
-    val currentPath: StateFlow<List<Folder>> = _currentFolderId
-        .map { folderId ->
-            repository.getPathToItem(folderId)
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
     // All items in the file system (for move operations and global search)
     val allItems: StateFlow<List<FileSystemItem>> = repository.getAllItems()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Current items in the viewed folder - FIXED IMPLEMENTATION
+    val currentFolderItems: StateFlow<List<FileSystemItem>> = combine(
+        repository.getAllItems(),
+        _currentFolderId
+    ) { items, folderId ->
+        items.filter { it.parentId == folderId }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Current folder details - FIXED IMPLEMENTATION
+    val currentFolder: StateFlow<Folder?> = combine(
+        repository.getAllItems(),
+        _currentFolderId
+    ) { items, folderId ->
+        items.find { it.id == folderId && it is Folder } as? Folder
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    // Path to current folder (breadcrumb) - FIXED IMPLEMENTATION
+    val currentPath: StateFlow<List<Folder>> = combine(
+        repository.getAllItems(),
+        _currentFolderId
+    ) { items, folderId ->
+        buildPathToItem(items, folderId)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // Navigation - Change current folder
     fun navigateToFolder(folderId: String) {
@@ -73,7 +73,7 @@ class FileSystemViewModel : ViewModel() {
         expandedFolders[folderId] = !(expandedFolders[folderId] ?: false)
     }
 
-    // CRUD Operations
+    // CRUD Operations - FIXED TO ENSURE REACTIVITY
     fun createFolder(name: String, parentId: String? = currentFolderId.value) {
         viewModelScope.launch {
             repository.addFolder(name, parentId)
@@ -84,6 +84,11 @@ class FileSystemViewModel : ViewModel() {
         viewModelScope.launch {
             repository.addNote(name, parentId)
         }
+    }
+
+    // Create note and return its ID for immediate navigation
+    fun createNoteAndReturnId(name: String, parentId: String? = currentFolderId.value): String {
+        return repository.addNote(name, parentId).id
     }
 
     fun renameItem(itemId: String, newName: String) {
@@ -121,5 +126,28 @@ class FileSystemViewModel : ViewModel() {
         viewModelScope.launch {
             repository.updateNoteContent(noteId, content)
         }
+    }
+
+    // Get note by ID
+    fun getNote(noteId: String): Note? {
+        return repository.getNote(noteId)
+    }
+
+    // Helper function to build path to item
+    private fun buildPathToItem(items: List<FileSystemItem>, itemId: String): List<Folder> {
+        val path = mutableListOf<Folder>()
+        var currentItem = items.find { it.id == itemId }
+
+        while (currentItem != null && currentItem.parentId != null) {
+            val parentFolder = items.find { it.id == currentItem.parentId && it is Folder } as? Folder
+            if (parentFolder != null) {
+                path.add(0, parentFolder)
+                currentItem = parentFolder
+            } else {
+                break
+            }
+        }
+
+        return path
     }
 }

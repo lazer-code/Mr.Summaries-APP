@@ -11,7 +11,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController  // Added this import
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -50,6 +50,8 @@ fun MainScreen() {
     val coroutineScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     var isDrawerOpen by remember { mutableStateOf(false) }
+
+    // CREATE SINGLE INSTANCE OF VIEWMODEL
     val fileSystemViewModel: FileSystemViewModel = viewModel()
 
     AppDrawer(
@@ -79,7 +81,9 @@ fun MainScreen() {
         drawerState = drawerState,
         onDrawerStateChange = { isOpen ->
             isDrawerOpen = isOpen
-        }
+        },
+        // PASS THE VIEWMODEL TO DRAWER
+        fileSystemViewModel = fileSystemViewModel
     ) {
         NavHost(navController = navController, startDestination = "home") {
             composable("home") {
@@ -92,6 +96,17 @@ fun MainScreen() {
                     },
                     onFilesClick = {
                         navController.navigate("files/root")
+                    },
+                    onNotepadClick = {
+                        navController.navigate("notepad")
+                    },
+                    onSummaryClick = {
+                        navController.navigate("summary")
+                    },
+                    onNewNoteClick = {
+                        // Create a new note and navigate to it
+                        val newNote = fileSystemViewModel.createNoteAndReturnId("Untitled Note")
+                        navController.navigate("note/$newNote")
                     }
                 )
             }
@@ -115,7 +130,7 @@ fun MainScreen() {
                     }
                 )
             }
-            // File Explorer Screen
+            // File Explorer Screen - PASS THE VIEWMODEL
             composable(
                 route = "files/{folderId}",
                 arguments = listOf(
@@ -137,7 +152,8 @@ fun MainScreen() {
                     },
                     onNoteClick = { noteId ->
                         navController.navigate("note/$noteId")
-                    }
+                    },
+                    viewModel = fileSystemViewModel // PASS THE SAME VIEWMODEL INSTANCE
                 )
             }
             // Note Editing Screen
@@ -151,17 +167,15 @@ fun MainScreen() {
             ) { backStackEntry ->
                 val noteId = backStackEntry.arguments?.getString("noteId") ?: return@composable
 
-                // When viewing a note, don't pass the noteId parameter if your NotepadScreen doesn't accept it yet
-                // Either update NotepadScreen to accept noteId or handle the navigation differently
                 NotepadScreen(
                     onMenuClick = {
                         coroutineScope.launch {
                             drawerState.open()
                             isDrawerOpen = true
                         }
-                    }
-                    // If NotepadScreen accepts noteId, uncomment this:
-                    // noteId = noteId
+                    },
+                    noteId = noteId,
+                    fileSystemViewModel = fileSystemViewModel // PASS THE SAME VIEWMODEL INSTANCE
                 )
             }
         }
@@ -175,7 +189,7 @@ private fun getCurrentRoute(navController: NavController): String {
 
     return when {
         route.startsWith("files") -> "files"
-        route.startsWith("note") -> "files" // When editing a note, we still highlight the Files section
+        route.startsWith("note") -> "notepad"
         else -> route
     }
 }

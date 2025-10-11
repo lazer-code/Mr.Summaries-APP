@@ -50,9 +50,9 @@ fun FileExplorerScreen(
     var showMoveDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    // Dialog states
-    val selectedItemForOperation = remember(selectedItemId) {
-        currentItems.find { it.id == selectedItemId }
+    // Dialog states (find selected item from the up-to-date allItems)
+    val selectedItemForOperation = remember(selectedItemId, allItems) {
+        allItems.find { it.id == selectedItemId }
     }
 
     Scaffold(
@@ -105,9 +105,11 @@ fun FileExplorerScreen(
                     when (item) {
                         is Folder -> viewModel.navigateToFolder(item.id)
                         is Note -> onNoteClick(item.id)
+                        else -> Unit
                     }
                 },
                 onItemLongClick = { item ->
+                    // Long-press selects the item and reveals the action bar
                     viewModel.selectItem(item.id)
                 }
             )
@@ -147,38 +149,49 @@ fun FileExplorerScreen(
     if (showRenameDialog && selectedItemForOperation != null) {
         RenameDialog(
             item = selectedItemForOperation,
-            onDismiss = { showRenameDialog = false },
+            onDismiss = {
+                showRenameDialog = false
+                viewModel.selectItem(null)
+            },
             onRename = { newName ->
                 viewModel.renameItem(selectedItemForOperation.id, newName)
                 showRenameDialog = false
+                viewModel.selectItem(null)
             }
         )
     }
 
     // Dialog for moving an item
     if (showMoveDialog && selectedItemForOperation != null) {
-        val item = selectedItemForOperation // Create local val to avoid multiple property accesses
+        val item = selectedItemForOperation // local copy
         MoveItemDialogContent(
             item = item,
             allItems = allItems,
             currentFolderId = currentFolderId,
-            onDismiss = { showMoveDialog = false },
-            onMove = { destinationFolderId ->
-                viewModel.moveItem(item.id, destinationFolderId)
+            onDismiss = {
+                showMoveDialog = false
+                viewModel.selectItem(null)
+            },
+            onMove = { newParentId ->
+                viewModel.moveItem(item.id, newParentId)
                 showMoveDialog = false
                 viewModel.selectItem(null)
             }
         )
     }
 
-    // Dialog for confirming deletion
+    // Confirmation dialog for deletion
     if (showDeleteConfirmDialog && selectedItemForOperation != null) {
         DeleteConfirmationDialog(
             item = selectedItemForOperation,
-            onDismiss = { showDeleteConfirmDialog = false },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                viewModel.selectItem(null)
+            },
             onConfirmDelete = {
                 viewModel.deleteItem(selectedItemForOperation.id)
                 showDeleteConfirmDialog = false
+                viewModel.selectItem(null)
             }
         )
     }
@@ -193,11 +206,11 @@ fun BreadcrumbNavigation(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .horizontalScroll(rememberScrollState()),
+            .horizontalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Root folder
+        // Home icon for root
         IconButton(onClick = { onFolderClick("root") }) {
             Icon(
                 imageVector = Icons.Default.Home,
@@ -263,7 +276,7 @@ fun FileSystemItemsList(
             items(items) { item ->
                 val isSelected = item.id == selectedItemId
 
-                FileSystemItemRow(
+                FileSystemItemCard(
                     item = item,
                     isSelected = isSelected,
                     onClick = { onItemClick(item) },
@@ -276,7 +289,7 @@ fun FileSystemItemsList(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun FileSystemItemRow(
+fun FileSystemItemCard(
     item: FileSystemItem,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -284,11 +297,11 @@ fun FileSystemItemRow(
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
+    // Use combinedClickable to support onClick AND onLongClick properly.
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            // Use combinedClickable to support long-press on a Card
+            .padding(horizontal = 16.dp, vertical = 6.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -298,21 +311,26 @@ fun FileSystemItemRow(
                 MaterialTheme.colorScheme.primaryContainer
             else
                 MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 8.dp else 2.dp
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon
+            // Item icon
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
                 tint = when (item.type) {
                     FileSystemItemType.FOLDER -> MaterialTheme.colorScheme.primary
                     FileSystemItemType.NOTE -> MaterialTheme.colorScheme.secondary
+                    // If additional types exist, map them here; fallback to onSurface
+                    else -> MaterialTheme.colorScheme.onSurface
                 },
                 modifier = Modifier.size(24.dp)
             )
@@ -337,18 +355,23 @@ fun FileSystemItemRow(
                 )
             }
 
-            // Type indicator
+            // Trailing type indicator
             when (item) {
                 is Folder -> {
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
                         contentDescription = "Open Folder",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
                 is Note -> {
-                    // Nothing extra for notes
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Note",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
                 }
+                else -> Unit
             }
         }
     }
@@ -361,15 +384,18 @@ fun SelectionActionBar(
     onDeleteClick: () -> Unit,
     onDismissClick: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 4.dp
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -471,6 +497,7 @@ fun AddItemDialog(
                         } else {
                             onAddNote(itemName)
                         }
+                        onDismiss()
                     }
                 },
                 enabled = itemName.isNotBlank()
@@ -549,14 +576,16 @@ fun DeleteConfirmationDialog(
                 Text(
                     text = warningMessage,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Red
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         },
         confirmButton = {
             Button(
                 onClick = onConfirmDelete,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
             ) {
                 Text("Delete")
             }
@@ -569,6 +598,10 @@ fun DeleteConfirmationDialog(
     )
 }
 
+/**
+ * Dialog content for moving an item into another folder.
+ * This is implemented as a top-level composable so references are resolvable where used.
+ */
 @Composable
 fun MoveItemDialogContent(
     item: FileSystemItem,
@@ -578,13 +611,13 @@ fun MoveItemDialogContent(
     onMove: (String?) -> Unit
 ) {
     // Extract folders from all items
-    val folders = remember(allItems) {
+    val folders: List<Folder> = remember(allItems) {
         allItems.filterIsInstance<Folder>()
             .filter { it.id != item.id } // Can't move to itself
     }
 
     // Don't show folders that are descendants of the current item (if it's a folder)
-    val validFolders = remember(folders, item) {
+    val validFolders: List<Folder> = remember(folders, item) {
         if (item is Folder) {
             // Function to get all descendant folder IDs
             fun getDescendantIds(folderId: String): Set<String> {
@@ -645,13 +678,13 @@ fun MoveItemDialogContent(
                     }
                 }
 
-                // Folder options
+                // Folder options - use explicit typing to avoid inference problems
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp)
                 ) {
-                    items(validFolders) { folder ->
+                    items(validFolders) { folder: Folder ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -27,7 +27,7 @@ import com.example.mrsummaries_app.filesystem.viewmodel.FileSystemViewModel
 @Composable
 fun FolderTree(
     onFolderSelected: (String) -> Unit,
-    viewModel: FileSystemViewModel = viewModel()
+    viewModel: FileSystemViewModel = viewModel() // KEEP DEFAULT BUT ALLOW OVERRIDE
 ) {
     val allItems by viewModel.allItems.collectAsState()
     val currentFolderId by viewModel.currentFolderId.collectAsState()
@@ -75,7 +75,7 @@ fun FolderTreeItem(
 ) {
     val isExpanded = expandedFolders[folder.id] ?: false
     val hasChildren = children.isNotEmpty()
-    val chevronRotation by animateFloatAsState(targetValue = if (isExpanded) 90f else 0f)
+    val chevronRotation by animateFloatAsState(targetValue = if (isExpanded) 90f else 0f, label = "")
 
     Column {
         // Folder row
@@ -91,7 +91,7 @@ fun FolderTreeItem(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Expand/collapse chevron
+            // Expand/collapse button (only if has children)
             if (hasChildren) {
                 IconButton(
                     onClick = { onExpandToggle(folder.id) },
@@ -100,7 +100,9 @@ fun FolderTreeItem(
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
                         contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        modifier = Modifier.rotate(chevronRotation)
+                        modifier = Modifier
+                            .rotate(chevronRotation)
+                            .size(16.dp)
                     )
                 }
             } else {
@@ -111,20 +113,20 @@ fun FolderTreeItem(
             Icon(
                 imageVector = Icons.Default.Folder,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 8.dp)
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(20.dp)
             )
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             // Folder name
             Text(
                 text = folder.name,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isSelected)
-                    MaterialTheme.colorScheme.primary
-                else
-                    MaterialTheme.colorScheme.onSurface,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
         }
 
@@ -139,7 +141,7 @@ fun FolderTreeItem(
                     if (child is Folder) {
                         // Recursive call for nested folders
                         val grandChildren = buildFolderHierarchy(
-                            items = buildFolderHierarchy(items = children),
+                            items = children,
                             parentId = child.id
                         )
                         FolderTreeItem(

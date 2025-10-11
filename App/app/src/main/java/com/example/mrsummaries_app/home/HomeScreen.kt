@@ -15,7 +15,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun HomeScreen(
     onMenuClick: () -> Unit,
-    onFilesClick: () -> Unit
+    onFilesClick: () -> Unit,
+    onNotepadClick: () -> Unit = {},
+    onSummaryClick: () -> Unit = {},
+    onNewNoteClick: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -57,114 +60,53 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Quick Access Cards
-            Row(
+            // Quick Access Cards - Only New Note
+            Card(
+                onClick = onNewNoteClick,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .width(200.dp)
+                    .height(120.dp)
+                    .padding(8.dp)
             ) {
-                // Files Card
-                Card(
-                    onClick = onFilesClick,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp)
-                        .padding(8.dp)
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("My Files")
-                    }
-                }
-
-                // Notes Card
-                Card(
-                    onClick = { /* Navigate to create new note */ },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp)
-                        .padding(8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.NoteAdd,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("New Note")
-                    }
+                    Icon(
+                        imageVector = Icons.Default.NoteAdd,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("New Note")
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                // Notepad Card
-                Card(
-                    onClick = { /* Navigate to notepad */ },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp)
-                        .padding(8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Notepad")
-                    }
-                }
+            Spacer(modifier = Modifier.height(24.dp))
 
-                // Summaries Card
-                Card(
-                    onClick = { /* Navigate to summaries */ },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp)
-                        .padding(8.dp)
+            // Summaries Card (keeping this one)
+            Card(
+                onClick = onSummaryClick,
+                modifier = Modifier
+                    .width(200.dp)
+                    .height(120.dp)
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MenuBook,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Summaries")
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Article,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Summaries")
                 }
             }
         }

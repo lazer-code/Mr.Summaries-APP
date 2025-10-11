@@ -17,7 +17,7 @@ class FileSystemRepository {
     // Root folder is the starting point of the file system
     private val rootFolder = Folder(
         id = "root",
-        name = "My Files",
+        name = "Notes",
         parentId = null
     )
 

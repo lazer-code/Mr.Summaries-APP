@@ -1,7 +1,7 @@
 package com.example.mrsummaries_app.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable  // Added missing import for clickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mrsummaries_app.filesystem.ui.FolderTree
+import com.example.mrsummaries_app.filesystem.viewmodel.FileSystemViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +32,7 @@ fun AppDrawer(
     navigateToFolder: (String) -> Unit,
     drawerState: DrawerState,
     onDrawerStateChange: (Boolean) -> Unit,
+    fileSystemViewModel: FileSystemViewModel, // ADD VIEWMODEL PARAMETER
     content: @Composable () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -118,7 +120,7 @@ fun AppDrawer(
 
                     Divider(modifier = Modifier.padding(vertical = 16.dp))
 
-                    // Folder Tree Navigation
+                    // Folder Tree Navigation - PASS THE VIEWMODEL
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -131,7 +133,8 @@ fun AppDrawer(
                                     drawerState.close()
                                     onDrawerStateChange(false)
                                 }
-                            }
+                            },
+                            viewModel = fileSystemViewModel // PASS THE VIEWMODEL
                         )
                     }
 
@@ -152,7 +155,7 @@ fun AppDrawer(
 }
 
 @Composable
-fun DrawerNavigationItem(
+private fun DrawerNavigationItem(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
@@ -170,31 +173,26 @@ fun DrawerNavigationItem(
         MaterialTheme.colorScheme.onSurface
     }
 
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(onClick = onClick), // This line had the "Unresolved reference 'clickable'" error
-        color = backgroundColor,
-        shape = RoundedCornerShape(8.dp)
+            .height(48.dp)
+            .background(backgroundColor, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = contentColor
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = label,
-                color = contentColor,
-                style = MaterialTheme.typography.bodyLarge
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = contentColor,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = label,
+            color = contentColor,
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }

@@ -19,19 +19,6 @@ import androidx.compose.ui.input.pointer.pointerInteropFilter
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-data class PathProperties(
-    var path: Path = Path(),
-    val color: Color = Color.Black,
-    var strokeWidth: Float = 5f,
-    var points: MutableList<Offset> = mutableListOf(),
-    val id: Long = System.currentTimeMillis(),
-    val isHighlighter: Boolean = false
-)
-
-enum class DrawingMode {
-    PEN, HIGHLIGHTER, ERASER
-}
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DrawingCanvas(
@@ -43,7 +30,10 @@ fun DrawingCanvas(
     stylusOnly: Boolean = true,
     onModeChanged: (DrawingMode) -> Unit = {},
     onPathDrawn: (List<PathProperties>) -> Unit = {},
-    undoState: UndoRedoState
+    undoState: UndoRedoState,
+    pathProperties: PathProperties? = null,
+    onFingerTouchInStylusMode: () -> Unit = {},
+    onDrawingStateChanged: (Boolean) -> Unit = {}
 ) {
     // Track all completed paths
     val paths = remember { mutableStateListOf<PathProperties>() }
@@ -54,7 +44,7 @@ fun DrawingCanvas(
     // Current path being drawn
     val currentPath = remember { mutableStateOf<PathProperties?>(null) }
 
-    // Remember if stylus button was pressed (to handle release properly)
+    // Remember if stylus button was pressed
     val stylusButtonPressed = remember { mutableStateOf(false) }
 
     // For stroke eraser - track if we're currently erasing
@@ -113,27 +103,23 @@ fun DrawingCanvas(
                     }
 
                     if (!isStylusOrAllowed) {
+                        onFingerTouchInStylusMode()
                         return@pointerInteropFilter false
                     }
 
                     // Detect stylus button press/release
                     val isStylusButtonCurrentlyPressed =
-                        (event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY) != 0
+                        event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
 
-                    // Get current point and pressure for consistency
                     val currentPoint = Offset(event.x, event.y)
-                    val pressure = if (event.pressure > 0f) event.pressure else 1.0f
-                    val adjustedWidth = strokeWidth * pressure.coerceIn(0.5f, 1.5f)
+                    val adjustedWidth = strokeWidth
 
-                    // Handle button state changes - this needs to happen BEFORE other processing
+                    // Handle button press/release events
                     if (isStylusButtonCurrentlyPressed != stylusButtonPressed.value) {
                         if (isStylusButtonCurrentlyPressed) {
                             // Button just pressed
-
-                            // If we're in the middle of drawing a stroke, finish and save the current path
                             currentPath.value?.let { path ->
-                                // Only save if it's not an eraser path and has enough points
-                                if (path.color != Color.LightGray.copy(alpha = 0.5f) && path.points.size > 1) {
+                                if (path.points.size > 1 && path.color != Color.LightGray.copy(alpha = 0.5f)) {
                                     paths.add(path)
                                 }
                             }
@@ -191,19 +177,20 @@ fun DrawingCanvas(
 
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
+                            onDrawingStateChanged(true)
                             // Clear redo history on new drawing
                             undonePathsState.clear()
 
                             // Don't create a new path if button press/release just handled it
                             if (currentPath.value == null) {
                                 if (currentMode == DrawingMode.ERASER) {
+                                    // Start erasing mode
                                     isErasing.value = true
 
-                                    // Find paths to remove (stroke eraser) - now handles both regular and highlighter paths
+                                    // Find paths to remove (stroke eraser)
                                     val pathsToRemove = mutableListOf<PathProperties>()
 
                                     for (path in paths) {
-                                        // Check ALL paths regardless of whether they are highlighter or not
                                         if (isPathNearPoint(path, currentPoint, adjustedWidth)) {
                                             pathsToRemove.add(path)
                                         }
@@ -260,11 +247,10 @@ fun DrawingCanvas(
 
                         MotionEvent.ACTION_MOVE -> {
                             if (currentMode == DrawingMode.ERASER && isErasing.value) {
-                                // Continue erasing - check for paths to remove - both pen and highlighter
+                                // Continue erasing - check for paths to remove
                                 val pathsToRemove = mutableListOf<PathProperties>()
 
                                 for (path in paths) {
-                                    // Check ALL paths regardless of type
                                     if (isPathNearPoint(path, currentPoint, adjustedWidth)) {
                                         pathsToRemove.add(path)
                                     }
@@ -320,6 +306,7 @@ fun DrawingCanvas(
                         }
 
                         MotionEvent.ACTION_UP -> {
+                            onDrawingStateChanged(false)
                             if (currentMode == DrawingMode.ERASER) {
                                 isErasing.value = false
                                 currentPath.value = null
@@ -425,35 +412,6 @@ private fun isPathNearPoint(path: PathProperties, point: Offset, threshold: Floa
             return true
         }
     }
+
     return false
-}
-
-// Class to handle undo/redo state
-class UndoRedoState {
-    var undoCount by mutableStateOf(0)
-        private set
-
-    var redoCount by mutableStateOf(0)
-        private set
-
-    fun undo() {
-        undoCount++
-    }
-
-    fun redo() {
-        redoCount++
-    }
-
-    fun onUndoPerformed() {
-        undoCount--
-    }
-
-    fun onRedoPerformed() {
-        redoCount--
-    }
-
-    fun clear() {
-        undoCount = 0
-        redoCount = 0
-    }
 }

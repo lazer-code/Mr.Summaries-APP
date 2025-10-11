@@ -21,6 +21,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.mrsummaries_app.filesystem.viewmodel.FileSystemViewModel
 import com.example.mrsummaries_app.notepad.note_components.DrawingCanvas
 import com.example.mrsummaries_app.notepad.note_components.DrawingMode
 import com.example.mrsummaries_app.notepad.note_components.PathProperties
@@ -30,7 +32,9 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotepadScreen(
-    onMenuClick: () -> Unit
+    onMenuClick: () -> Unit,
+    noteId: String? = null,
+    fileSystemViewModel: FileSystemViewModel = viewModel()
 ) {
     var noteText by remember { mutableStateOf("") }
     var isDrawingMode by remember { mutableStateOf(false) }
@@ -69,6 +73,25 @@ fun NotepadScreen(
     // For drawing undo/redo
     val undoRedoState = remember { UndoRedoState() }
 
+    // Load note content if noteId is provided
+    LaunchedEffect(noteId) {
+        noteId?.let { id ->
+            val note = fileSystemViewModel.getNote(id)
+            if (note != null) {
+                noteText = note.content
+            }
+        }
+    }
+
+    // Save note content when it changes
+    LaunchedEffect(noteText) {
+        noteId?.let { id ->
+            if (noteText.isNotEmpty()) {
+                fileSystemViewModel.updateNoteContent(id, noteText)
+            }
+        }
+    }
+
     // Auto-hide the stylus message after a delay
     LaunchedEffect(showStylusMessage) {
         if (showStylusMessage) {
@@ -103,11 +126,13 @@ fun NotepadScreen(
                         onClick = {
                             if (isDrawingMode) {
                                 undoRedoState.undo()
-                            } else if (textHistoryIndex > 0) {
-                                // Text mode undo
-                                textFutureHistory.add(0, noteText)
-                                textHistoryIndex--
-                                noteText = textHistory[textHistoryIndex]
+                            } else {
+                                // Text undo logic
+                                if (textHistoryIndex > 0) {
+                                    textFutureHistory.add(0, noteText)
+                                    textHistoryIndex--
+                                    noteText = textHistory[textHistoryIndex]
+                                }
                             }
                         },
                         enabled = (isDrawingMode || textHistoryIndex > 0)
@@ -126,11 +151,17 @@ fun NotepadScreen(
                         onClick = {
                             if (isDrawingMode) {
                                 undoRedoState.redo()
-                            } else if (textFutureHistory.isNotEmpty()) {
-                                // Text mode redo
-                                textHistory.add(noteText)
-                                textHistoryIndex++
-                                noteText = textFutureHistory.removeAt(0)
+                            } else {
+                                // Text redo logic
+                                if (textFutureHistory.isNotEmpty()) {
+                                    noteText = textFutureHistory.removeAt(0)
+                                    textHistoryIndex++
+                                    if (textHistoryIndex >= textHistory.size) {
+                                        textHistory.add(noteText)
+                                    } else {
+                                        textHistory[textHistoryIndex] = noteText
+                                    }
+                                }
                             }
                         },
                         enabled = (isDrawingMode || textFutureHistory.isNotEmpty())
@@ -171,7 +202,7 @@ fun NotepadScreen(
                         isDrawingMode = false
                         showSizeAdjustment = false
                         // Clear drawing undo state when switching modes
-                        undoRedoState.clear()
+                        undoRedoState.reset()
                     },
                     modifier = Modifier.border(
                         width = 1.dp,
@@ -276,64 +307,66 @@ fun NotepadScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     // Show color selection for pen and highlighter
-                    if (adjustingToolMode == DrawingMode.PEN || adjustingToolMode == DrawingMode.HIGHLIGHTER) {
-                        Text(
-                            text = "Color",
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
+                    adjustingToolMode?.let { toolMode ->
+                        if (toolMode == DrawingMode.PEN || toolMode == DrawingMode.HIGHLIGHTER) {
+                            Text(
+                                text = "Color",
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
 
-                        // Color selection grid - 2 rows of 5 colors
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                // First row of colors
-                                colors.take(5).forEach { color ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .background(color, shape = RoundedCornerShape(16.dp))
-                                            .border(
-                                                width = 2.dp,
-                                                color = if (selectedColor == color)
-                                                    MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                shape = RoundedCornerShape(16.dp)
-                                            )
-                                            .clickable { selectedColor = color }
-                                    )
+                            // Color selection grid - 2 rows of 5 colors
+                            Column {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    // First row of colors
+                                    colors.take(5).forEach { color ->
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(color, RoundedCornerShape(16.dp))
+                                                .border(
+                                                    width = 2.dp,
+                                                    color = if (selectedColor == color)
+                                                        MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                    shape = RoundedCornerShape(16.dp)
+                                                )
+                                                .clickable { selectedColor = color }
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    // Second row of colors
+                                    colors.drop(5).forEach { color ->
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(color, RoundedCornerShape(16.dp))
+                                                .border(
+                                                    width = 2.dp,
+                                                    color = if (selectedColor == color)
+                                                        MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                    shape = RoundedCornerShape(16.dp)
+                                                )
+                                                .clickable { selectedColor = color }
+                                        )
+                                    }
                                 }
                             }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                // Second row of colors
-                                colors.drop(5).forEach { color ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .background(color, shape = RoundedCornerShape(16.dp))
-                                            .border(
-                                                width = 2.dp,
-                                                color = if (selectedColor == color)
-                                                    MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                shape = RoundedCornerShape(16.dp)
-                                            )
-                                            .clickable { selectedColor = color }
-                                    )
-                                }
-                            }
+                            Divider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
                         }
-
-                        Divider(
-                            modifier = Modifier.padding(vertical = 12.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
                     }
 
                     // Size adjustment UI
@@ -362,21 +395,21 @@ fun NotepadScreen(
                                 DrawingMode.PEN -> penSize
                                 DrawingMode.HIGHLIGHTER -> highlighterSize
                                 DrawingMode.ERASER -> eraserSize
-                                else -> 5f
+                                null -> 5f
                             },
                             onValueChange = { newSize ->
                                 when (adjustingToolMode) {
                                     DrawingMode.PEN -> penSize = newSize
                                     DrawingMode.HIGHLIGHTER -> highlighterSize = newSize
                                     DrawingMode.ERASER -> eraserSize = newSize
-                                    else -> {}
+                                    null -> { /* do nothing */ }
                                 }
                             },
                             valueRange = when (adjustingToolMode) {
                                 DrawingMode.PEN -> 1f..100f
                                 DrawingMode.HIGHLIGHTER -> 5f..100f
                                 DrawingMode.ERASER -> 10f..100f
-                                else -> 1f..100f
+                                null -> 1f..100f
                             },
                             steps = 0,
                             modifier = Modifier.weight(1f)
@@ -399,7 +432,7 @@ fun NotepadScreen(
                                 DrawingMode.PEN -> "${penSize.toInt()}"
                                 DrawingMode.HIGHLIGHTER -> "${highlighterSize.toInt()}"
                                 DrawingMode.ERASER -> "${eraserSize.toInt()}"
-                                else -> "5"
+                                null -> "5"
                             },
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -417,14 +450,14 @@ fun NotepadScreen(
                             DrawingMode.PEN -> selectedColor
                             DrawingMode.HIGHLIGHTER -> selectedColor.copy(alpha = 0.3f)
                             DrawingMode.ERASER -> Color.LightGray
-                            else -> Color.Black
+                            null -> Color.Black
                         }
 
                         val previewSize = when (adjustingToolMode) {
                             DrawingMode.PEN -> penSize
                             DrawingMode.HIGHLIGHTER -> highlighterSize
                             DrawingMode.ERASER -> eraserSize
-                            else -> 5f
+                            null -> 5f
                         }.coerceAtMost(100f)  // Ensure preview size is capped at 100dp
 
                         Box(
@@ -498,51 +531,40 @@ fun NotepadScreen(
                     // Helpful indicator showing stylus button functionality
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp)
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
                             .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .padding(8.dp)
                     ) {
                         Text(
-                            text = "Press stylus button for quick eraser",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Hold stylus button for eraser",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 } else {
-                    // Text editing mode with undo/redo tracking
+                    // Text editing mode
                     TextField(
                         value = noteText,
                         onValueChange = { newText ->
-                            // Track text changes for undo/redo
-                            if (noteText != newText) {
-                                // Add current text to history
-                                if (textHistoryIndex < textHistory.size - 1) {
-                                    // Remove future history if we're in the middle of the history
-                                    textHistory.subList(textHistoryIndex + 1, textHistory.size).clear()
-                                    textFutureHistory.clear()
-                                }
-
-                                // Store current text for undo
-                                textHistory.add(noteText)
-                                textHistoryIndex = textHistory.size - 1
-
-                                // Update text
-                                noteText = newText
-
-                                // Limit history size
-                                if (textHistory.size > 100) {
-                                    textHistory.removeAt(0)
-                                    textHistoryIndex--
+                            // Add to history for undo functionality
+                            if (newText != noteText) {
+                                textFutureHistory.clear() // Clear redo history when new text is typed
+                                if (textHistoryIndex == textHistory.lastIndex) {
+                                    textHistory.add(newText)
+                                    textHistoryIndex = textHistory.lastIndex
+                                } else {
+                                    textHistory[textHistoryIndex + 1] = newText
+                                    textHistoryIndex++
                                 }
                             }
+                            noteText = newText
                         },
                         modifier = Modifier.fillMaxSize(),
-                        placeholder = { Text("Start typing...") },
+                        placeholder = { Text("Start typing your notes...") },
                         textStyle = TextStyle(fontSize = 16.sp),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
