@@ -1,9 +1,12 @@
 package com.example.mrsummaries_app.models
 
+import java.io.Serializable
+
 data class Summary(
-    val id: String,
+    val id: Int,
     val title: String,
-    val author: String,
-    val filePath: String,
-    val timestamp: Long
-)
+    val content: String,
+    val subject: String,
+    val dateCreated: String,
+    val imageUrl: String? = null
+) : Serializable

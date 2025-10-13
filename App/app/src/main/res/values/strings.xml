@@ -1,18 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Mr. Summaries App</string>
-    <string name="navigation_drawer_open">Open navigation drawer</string>
-    <string name="navigation_drawer_close">Close navigation drawer</string>
-    <string name="action_settings">Settings</string>
-    <string name="create_subfolder">Create Subfolder</string>
-    <string name="create_note">Create Note</string>
-    <string name="folders">Folders</string>
-    <string name="folder_name">Folder Name</string>
-    <string name="note_title">Note Title</string>
+    <string name="app_name">Mr. Summaries</string>
+
+    <!-- Bottom nav -->
+    <string name="home">Home</string>
+    <string name="notes">Notes</string>
+    <string name="summaries">Summaries</string>
+    <string name="profile">Profile</string>
+
+    <!-- Note editor actions -->
     <string name="save">Save</string>
-    <string name="undo">Undo</string>
-    <string name="redo">Redo</string>
-    <string name="clear">Clear</string>
-    <string name="pen">Pen</string>
-    <string name="highlighter">Highlighter</string>
-    <string name="eraser">Eraser</string>
+    <string name="share">Share</string>
+
+    <!-- Summary / fragment strings -->
+    <string name="no_summaries">No summaries yet.</string>
+    <string name="subject_placeholder">Subject</string>
+
+    <!-- Subjects used by spinner in Note Editor -->
+    <string-array name="subjects">
+        <item>General</item>
+        <item>Math</item>
+        <item>Physics</item>
+        <item>Computer Science</item>
+        <item>Chemistry</item>
+        <item>Biology</item>
+        <item>History</item>
+        <item>Literature</item>
+        <item>Economics</item>
+    </string-array>
+
+    <!-- ToolsFragment strings -->
+    <string name="tool_pencil">Pencil</string>
+    <string name="tool_highlighter">Highlighter</string>
+    <string name="tool_eraser">Eraser</string>
+    <string name="tool_text">Text</string>
+    <string name="tool_lasso">Lasso</string>
+    <string name="tool_clear">Clear</string>
+    <string name="tool_undo">Undo</string>
+
+    <!-- Color labels (used as contentDescription for accessibility) -->
+    <string name="colors_label">Colors</string>
+    <string name="color_black">Black</string>
+    <string name="color_red">Red</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_green">Green</string>
+    <string name="color_yellow">Yellow</string>
+    <string name="color_magenta">Magenta</string>
+    <string name="color_cyan">Cyan</string>
 </resources>

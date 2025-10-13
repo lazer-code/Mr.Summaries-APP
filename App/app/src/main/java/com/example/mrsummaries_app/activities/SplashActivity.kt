@@ -6,28 +6,32 @@ import android.os.Handler
 import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import com.example.mrsummaries_app.R
-import com.example.mrsummaries_app.utils.SharedPreferencesManager
+import com.example.mrsummaries_app.util.PreferenceManager
 
 class SplashActivity : AppCompatActivity() {
 
-    private lateinit var sharedPreferencesManager: SharedPreferencesManager
-    private val SPLASH_TIME_OUT: Long = 1500
+    private val SPLASH_DELAY = 1500L // 1.5 seconds
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
-        sharedPreferencesManager = SharedPreferencesManager(this)
+        // Hide the action bar
+        supportActionBar?.hide()
 
+        // Delay and then navigate to the appropriate screen
         Handler(Looper.getMainLooper()).postDelayed({
-            // Check if user is already logged in
-            val intent = if (sharedPreferencesManager.isLoggedIn()) {
-                Intent(this, MainActivity::class.java)
-            } else {
-                Intent(this, LoginActivity::class.java)
-            }
-            startActivity(intent)
-            finish()
-        }, SPLASH_TIME_OUT)
+            navigateToNextScreen()
+        }, SPLASH_DELAY)
+    }
+
+    private fun navigateToNextScreen() {
+        val preferenceManager = PreferenceManager(this)
+
+        // Check if user is logged in (for a real app with authentication)
+        // For now, we'll go straight to MainActivity
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        finish() // Close the splash activity
     }
 }

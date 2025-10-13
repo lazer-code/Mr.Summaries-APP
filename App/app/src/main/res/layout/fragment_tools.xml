@@ -1,214 +1,199 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/tools_scroll"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".fragments.ToolsFragment">
-
-    <com.example.mrsummaries_app.custom_views.DrawingView
-        android:id="@+id/drawing_view"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@+id/toolsLayout"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:background="#FFFFFF" />
+    android:padding="12dp"
+    tools:context="com.example.mrsummaries_app.fragments.ToolsFragment">
 
     <LinearLayout
-        android:id="@+id/toolsLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintBottom_toBottomOf="parent">
+        android:orientation="vertical">
 
-        <!-- Main toolbar -->
+        <!-- Row of tool buttons -->
         <LinearLayout
-            android:id="@+id/mainToolbar"
+            android:id="@+id/tools_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:padding="8dp"
-            android:background="#EFEFEF">
+            android:gravity="center_vertical"
+            android:padding="8dp">
 
-            <Button
-                android:id="@+id/pen_button"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Pen" />
+            <ImageButton
+                android:id="@+id/btn_pencil"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_pen"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_pencil" />
 
-            <Button
-                android:id="@+id/highlighter_button"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Highlighter" />
+            <ImageButton
+                android:id="@+id/btn_highlighter"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_highlighter"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_highlighter" />
 
-            <Button
-                android:id="@+id/eraser_button"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Eraser" />
+            <ImageButton
+                android:id="@+id/btn_eraser"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_eraser"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_eraser" />
 
-            <Button
-                android:id="@+id/clear_button"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Clear" />
+            <ImageButton
+                android:id="@+id/btn_text"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_text"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_text" />
+
+            <ImageButton
+                android:id="@+id/btn_lasso"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_lasso"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_lasso" />
+
+            <View
+                android:layout_width="8dp"
+                android:layout_height="1dp" />
+
+            <ImageButton
+                android:id="@+id/btn_clear"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_clear"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_clear" />
+
+            <ImageButton
+                android:id="@+id/btn_undo"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_undo"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tool_undo" />
         </LinearLayout>
 
-        <!-- Pen customization -->
+        <!-- Color picker card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/color_picker_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:id="@+id/label_colors"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/colors_label"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center">
+
+                    <View
+                        android:id="@+id/color_black"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/black"
+                        android:contentDescription="@string/color_black" />
+
+                    <View
+                        android:id="@+id/color_red"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/holo_red_dark"
+                        android:contentDescription="@string/color_red" />
+
+                    <View
+                        android:id="@+id/color_blue"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/holo_blue_dark"
+                        android:contentDescription="@string/color_blue" />
+
+                    <View
+                        android:id="@+id/color_green"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/holo_green_dark"
+                        android:contentDescription="@string/color_green" />
+
+                    <View
+                        android:id="@+id/color_yellow"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/holo_orange_light"
+                        android:contentDescription="@string/color_yellow" />
+
+                    <View
+                        android:id="@+id/color_magenta"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="#FF00FF"
+                        android:contentDescription="@string/color_magenta" />
+
+                    <View
+                        android:id="@+id/color_cyan"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_margin="4dp"
+                        android:background="#00FFFF"
+                        android:contentDescription="@string/color_cyan" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Size slider -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="12dp"
             android:padding="8dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Pen Size" />
-
             <SeekBar
-                android:id="@+id/pen_size_seekbar"
-                android:layout_width="match_parent"
+                android:id="@+id/seek_bar_size"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:max="30"
-                android:progress="10"
-                android:visibility="gone" />
+                android:progress="5" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Pen Color"
-                android:layout_marginTop="8dp" />
-
-            <LinearLayout
-                android:id="@+id/pen_color_palette"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <View
-                    android:id="@+id/color_black"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/black"
-                    android:layout_margin="4dp" />
-
-                <View
-                    android:id="@+id/color_red"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/red"
-                    android:layout_margin="4dp" />
-
-                <View
-                    android:id="@+id/color_blue"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/blue"
-                    android:layout_margin="4dp" />
-
-                <View
-                    android:id="@+id/color_green"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/green"
-                    android:layout_margin="4dp" />
-            </LinearLayout>
+            <View
+                android:id="@+id/view_size_preview"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/circle_shape" />
         </LinearLayout>
-
-        <!-- Highlighter customization -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Highlighter Size" />
-
-            <SeekBar
-                android:id="@+id/highlighter_size_seekbar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="50"
-                android:progress="20"
-                android:visibility="gone" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Highlighter Color"
-                android:layout_marginTop="8dp" />
-
-            <LinearLayout
-                android:id="@+id/highlighter_color_palette"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <View
-                    android:id="@+id/highlighter_yellow"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/yellow"
-                    android:layout_margin="4dp" />
-
-                <View
-                    android:id="@+id/highlighter_green"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/light_green"
-                    android:layout_margin="4dp" />
-
-                <View
-                    android:id="@+id/highlighter_pink"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/pink"
-                    android:layout_margin="4dp" />
-
-                <View
-                    android:id="@+id/highlighter_blue"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@color/light_blue"
-                    android:layout_margin="4dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Eraser customization -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Eraser Size" />
-
-            <SeekBar
-                android:id="@+id/eraser_size_seekbar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="50"
-                android:progress="20"
-                android:visibility="gone" />
-        </LinearLayout>
-
     </LinearLayout>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>

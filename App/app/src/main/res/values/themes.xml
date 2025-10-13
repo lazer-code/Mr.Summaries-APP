@@ -1,5 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App theme using Material Components (Material3 compatible attributes)
+         Keep a single Theme.MrSummariesApp definition to avoid duplicate resource errors.
+         This theme uses color resources defined in res/values/colors.xml -->
+    <style name="Theme.MrSummariesApp" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Core colors -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+        <item name="colorPrimaryContainer">@color/colorPrimaryContainer</item>
+        <item name="colorSecondary">@color/colorSecondary</item>
 
-    <style name="Theme.MrSummariesApp" parent="android:Theme.Material.Light.NoActionBar" />
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/colorPrimaryVariant</item>
+
+        <!-- Toolbar / AppBar overlay references -->
+        <item name="toolbarStyle">@style/Widget.Material3.Toolbar</item>
+    </style>
+
+    <!-- AppBar overlay used by AppBarLayout/Toolbar -->
+    <style name="Theme.MrSummariesApp.AppBarOverlay" parent="ThemeOverlay.MaterialComponents.ActionBar">
+        <item name="android:background">?attr/colorPrimary</item>
+    </style>
+
+    <!-- Popup theme for toolbar menus (popup menu / overflow) -->
+    <style name="Theme.MrSummariesApp.PopupOverlay" parent="ThemeOverlay.MaterialComponents.Light">
+        <item name="android:popupBackground">?attr/colorPrimary</item>
+    </style>
 </resources>

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#3F51B5</color>
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
     <color name="folder_selected_bg">#E8EAF6</color>
@@ -14,4 +13,19 @@
     <color name="light_blue">#ADD8E6</color>
     <color name="light_green">#90EE90</color>
     <color name="colorPrimaryLight">#C5CAE9</color>
+
+    <!-- Useful greys -->
+
+    <color name="colorPrimary">#1E88E5</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+    <color name="colorPrimaryContainer">#BBDEFB</color>
+    <!-- Slightly darker primary for status bar if needed -->
+    <color name="colorPrimaryVariant">#1976D2</color>
+
+    <!-- Secondary / accent -->
+    <color name="colorSecondary">#03DAC6</color>
+
+    <!-- Surfaces / background -->
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorBackground">#FAFAFA</color>
 </resources>

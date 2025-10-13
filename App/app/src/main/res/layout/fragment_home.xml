@@ -1,75 +1,164 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    tools:context=".fragments.HomeFragment">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        tools:context=".fragments.HomeFragment">
+        android:paddingBottom="16dp">
 
         <TextView
-            android:id="@+id/welcome_text"
-            android:layout_width="0dp"
+            android:id="@+id/text_welcome"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
             android:text="Welcome to Mr. Summaries"
-            android:textSize="24sp"
+            android:textSize="20sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/recent_items_title"
-            android:layout_width="0dp"
+            android:id="@+id/text_subject_label"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:text="Recent Summaries"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="24dp"
+            android:text="Subjects"
             android:textSize="18sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/welcome_text" />
+            app:layout_constraintTop_toBottomOf="@+id/text_welcome" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recent_items_recycler_view"
-            android:layout_width="0dp"
+        <HorizontalScrollView
+            android:id="@+id/subject_scroll"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:clipToPadding="false"
-            android:orientation="horizontal"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
-            app:layout_constraintEnd_toEndOf="parent"
+            android:scrollbars="none"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/recent_items_title" />
+            app:layout_constraintTop_toBottomOf="@+id/text_subject_label">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="8dp">
+
+                <TextView
+                    android:id="@+id/card_math"
+                    android:layout_width="120dp"
+                    android:layout_height="80dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/subject_card_background"
+                    android:drawableTop="@drawable/ic_math"
+                    android:gravity="center"
+                    android:padding="8dp"
+                    android:text="Math"
+                    android:textColor="@android:color/white" />
+
+                <TextView
+                    android:id="@+id/card_physics"
+                    android:layout_width="120dp"
+                    android:layout_height="80dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/subject_card_background"
+                    android:drawableTop="@drawable/ic_physics"
+                    android:gravity="center"
+                    android:padding="8dp"
+                    android:text="Physics"
+                    android:textColor="@android:color/white" />
+
+                <TextView
+                    android:id="@+id/card_computer_science"
+                    android:layout_width="120dp"
+                    android:layout_height="80dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/subject_card_background"
+                    android:drawableTop="@drawable/ic_computer_science"
+                    android:gravity="center"
+                    android:padding="8dp"
+                    android:text="Computer Science"
+                    android:textColor="@android:color/white" />
+
+                <TextView
+                    android:id="@+id/card_chemistry"
+                    android:layout_width="120dp"
+                    android:layout_height="80dp"
+                    android:background="@drawable/subject_card_background"
+                    android:drawableTop="@drawable/ic_chemistry"
+                    android:gravity="center"
+                    android:padding="8dp"
+                    android:text="Chemistry"
+                    android:textColor="@android:color/white" />
+            </LinearLayout>
+        </HorizontalScrollView>
 
         <TextView
-            android:id="@+id/courses_title"
-            android:layout_width="0dp"
+            android:id="@+id/text_recent_notes_label"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:text="My Courses"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="24dp"
+            android:text="Recent Notes"
             android:textSize="18sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/recent_items_recycler_view" />
+            app:layout_constraintTop_toBottomOf="@+id/subject_scroll" />
 
         <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/courses_recycler_view"
-            android:layout_width="0dp"
+            android:id="@+id/recycler_recent_notes"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:clipToPadding="false"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            app:layout_constraintEnd_toEndOf="parent"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/courses_title" />
+            app:layout_constraintTop_toBottomOf="@+id/text_recent_notes_label"
+            tools:itemCount="3"
+            tools:listitem="@layout/item_note" />
+
+        <TextView
+            android:id="@+id/text_featured_summaries_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="24dp"
+            android:text="Featured Summaries"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/recycler_recent_notes" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_featured_summaries"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/text_featured_summaries_label"
+            tools:itemCount="3"
+            tools:listitem="@layout/item_summary" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_new_note"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:contentDescription="Create new note"
+            android:src="@drawable/ic_add"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
+</androidx.core.widget.NestedScrollView>
