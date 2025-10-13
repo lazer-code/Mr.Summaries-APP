@@ -1,7 +1,9 @@
 package com.example.mrsummaries_app.notepad
 
 import android.view.MotionEvent
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,11 +11,34 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.BorderColor
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.Redo
 import androidx.compose.material.icons.outlined.Undo
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,7 +54,7 @@ import com.example.mrsummaries_app.notepad.note_components.PathProperties
 import com.example.mrsummaries_app.notepad.note_components.UndoRedoState
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun NotepadScreen(
     onMenuClick: () -> Unit,
@@ -73,22 +98,35 @@ fun NotepadScreen(
     // For drawing undo/redo
     val undoRedoState = remember { UndoRedoState() }
 
-    // Load note content if noteId is provided
-    LaunchedEffect(noteId) {
-        noteId?.let { id ->
+    // Local current note id that can be set when user saves a new note
+    var currentNoteId by remember { mutableStateOf(noteId) }
+
+    // Save dialog visibility
+    var showSaveDialog by remember { mutableStateOf(false) }
+
+    // Collect once and pass into save dialog so existing folders show up
+    val allItems by fileSystemViewModel.allItems.collectAsState()
+    val currentFolderIdByVM by fileSystemViewModel.currentFolderId.collectAsState()
+
+    // Load note content if currentNoteId is provided
+    LaunchedEffect(currentNoteId) {
+        currentNoteId?.let { id ->
             val note = fileSystemViewModel.getNote(id)
             if (note != null) {
                 noteText = note.content
+                // Initialize text history with existing content so first undo works correctly
+                textHistory.clear()
+                textHistory.add(noteText)
+                textHistoryIndex = textHistory.lastIndex
             }
         }
     }
 
-    // Save note content when it changes
+    // Save note content when it changes (only for existing saved notes)
     LaunchedEffect(noteText) {
-        noteId?.let { id ->
-            if (noteText.isNotEmpty()) {
-                fileSystemViewModel.updateNoteContent(id, noteText)
-            }
+        currentNoteId?.let { id ->
+            // Avoid spamming repository with empty content
+            fileSystemViewModel.updateNoteContent(id, noteText)
         }
     }
 
@@ -113,7 +151,7 @@ fun NotepadScreen(
                     }
                 },
                 actions = {
-                    // Toggle stylus-only mode
+                    // Toggle stylus-only mode (affects DrawingCanvas)
                     IconButton(onClick = { stylusOnly = !stylusOnly }) {
                         Icon(
                             imageVector = if (stylusOnly) Icons.Default.Edit else Icons.Default.TouchApp,
@@ -175,7 +213,8 @@ fun NotepadScreen(
                         )
                     }
 
-                    IconButton(onClick = { /* Save note */ }) {
+                    // Save Button -> open folder picker dialog
+                    IconButton(onClick = { showSaveDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Save,
                             contentDescription = "Save note"
@@ -207,95 +246,88 @@ fun NotepadScreen(
                     modifier = Modifier.border(
                         width = 1.dp,
                         color = if (!isDrawingMode) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(8.dp)
                     )
                 ) {
                     Icon(
                         imageVector = Icons.Default.TextFields,
-                        contentDescription = "Text Mode"
+                        contentDescription = "Text",
+                        tint = if (!isDrawingMode) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
                     )
                 }
 
                 IconButton(
                     onClick = {
-                        if (isDrawingMode && drawingMode == DrawingMode.PEN) {
-                            // Already selected - show size adjustment
-                            showSizeAdjustment = !showSizeAdjustment
-                            adjustingToolMode = DrawingMode.PEN
-                        } else {
-                            // Not selected yet - select it
-                            isDrawingMode = true
-                            drawingMode = DrawingMode.PEN
-                            showSizeAdjustment = false
-                        }
+                        isDrawingMode = true
+                        drawingMode = DrawingMode.PEN
+                        showSizeAdjustment = true
+                        adjustingToolMode = DrawingMode.PEN
                     },
                     modifier = Modifier.border(
                         width = 1.dp,
                         color = if (isDrawingMode && drawingMode == DrawingMode.PEN)
                             MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(8.dp)
                     )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Pen"
+                        contentDescription = "Pen",
+                        tint = if (isDrawingMode && drawingMode == DrawingMode.PEN)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
                     )
                 }
 
                 IconButton(
                     onClick = {
-                        if (isDrawingMode && drawingMode == DrawingMode.HIGHLIGHTER) {
-                            // Already selected - show size adjustment
-                            showSizeAdjustment = !showSizeAdjustment
-                            adjustingToolMode = DrawingMode.HIGHLIGHTER
-                        } else {
-                            // Not selected yet - select it
-                            isDrawingMode = true
-                            drawingMode = DrawingMode.HIGHLIGHTER
-                            showSizeAdjustment = false
-                        }
+                        isDrawingMode = true
+                        drawingMode = DrawingMode.HIGHLIGHTER
+                        showSizeAdjustment = true
+                        adjustingToolMode = DrawingMode.HIGHLIGHTER
                     },
                     modifier = Modifier.border(
                         width = 1.dp,
                         color = if (isDrawingMode && drawingMode == DrawingMode.HIGHLIGHTER)
                             MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(8.dp)
                     )
                 ) {
                     Icon(
                         imageVector = Icons.Default.BorderColor,
-                        contentDescription = "Highlighter"
+                        contentDescription = "Highlighter",
+                        tint = if (isDrawingMode && drawingMode == DrawingMode.HIGHLIGHTER)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
                     )
                 }
 
                 IconButton(
                     onClick = {
-                        if (isDrawingMode && drawingMode == DrawingMode.ERASER) {
-                            // Already selected - show size adjustment
-                            showSizeAdjustment = !showSizeAdjustment
-                            adjustingToolMode = DrawingMode.ERASER
-                        } else {
-                            // Not selected yet - select it
-                            isDrawingMode = true
-                            drawingMode = DrawingMode.ERASER
-                            showSizeAdjustment = false
-                        }
+                        isDrawingMode = true
+                        drawingMode = DrawingMode.ERASER
+                        showSizeAdjustment = true
+                        adjustingToolMode = DrawingMode.ERASER
                     },
                     modifier = Modifier.border(
                         width = 1.dp,
                         color = if (isDrawingMode && drawingMode == DrawingMode.ERASER)
                             MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(8.dp)
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CleaningServices,
-                        contentDescription = "Eraser"
+                        imageVector = Icons.Default.Backspace,
+                        contentDescription = "Eraser",
+                        tint = if (isDrawingMode && drawingMode == DrawingMode.ERASER)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
-            // Combined Size & Color Adjustment Panel (appears when a tool is double-clicked)
+            // Size adjustment UI
             AnimatedVisibility(
                 visible = showSizeAdjustment,
                 enter = expandVertically(animationSpec = tween(200)),
@@ -304,169 +336,89 @@ fun NotepadScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp)
                 ) {
-                    // Show color selection for pen and highlighter
-                    adjustingToolMode?.let { toolMode ->
-                        if (toolMode == DrawingMode.PEN || toolMode == DrawingMode.HIGHLIGHTER) {
-                            Text(
-                                text = "Color",
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            // Color selection grid - 2 rows of 5 colors
-                            Column {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    // First row of colors
-                                    colors.take(5).forEach { color ->
-                                        Box(
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .background(color, RoundedCornerShape(16.dp))
-                                                .border(
-                                                    width = 2.dp,
-                                                    color = if (selectedColor == color)
-                                                        MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                    shape = RoundedCornerShape(16.dp)
-                                                )
-                                                .clickable { selectedColor = color }
-                                        )
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    // Second row of colors
-                                    colors.drop(5).forEach { color ->
-                                        Box(
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .background(color, RoundedCornerShape(16.dp))
-                                                .border(
-                                                    width = 2.dp,
-                                                    color = if (selectedColor == color)
-                                                        MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                    shape = RoundedCornerShape(16.dp)
-                                                )
-                                                .clickable { selectedColor = color }
-                                        )
-                                    }
-                                }
-                            }
-
-                            Divider(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        }
-                    }
-
-                    // Size adjustment UI
                     Text(
                         text = "Size",
                         style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Small size indicator
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .background(Color.Gray, RoundedCornerShape(5.dp))
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Slider
-                        Slider(
-                            value = when (adjustingToolMode) {
-                                DrawingMode.PEN -> penSize
-                                DrawingMode.HIGHLIGHTER -> highlighterSize
-                                DrawingMode.ERASER -> eraserSize
-                                null -> 5f
-                            },
-                            onValueChange = { newSize ->
-                                when (adjustingToolMode) {
-                                    DrawingMode.PEN -> penSize = newSize
-                                    DrawingMode.HIGHLIGHTER -> highlighterSize = newSize
-                                    DrawingMode.ERASER -> eraserSize = newSize
-                                    null -> { /* do nothing */ }
-                                }
-                            },
-                            valueRange = when (adjustingToolMode) {
-                                DrawingMode.PEN -> 1f..100f
-                                DrawingMode.HIGHLIGHTER -> 5f..100f
-                                DrawingMode.ERASER -> 10f..100f
-                                null -> 1f..100f
-                            },
-                            steps = 0,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Large size indicator
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .background(Color.Gray, RoundedCornerShape(15.dp))
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        // Size text display
-                        Text(
-                            text = when (adjustingToolMode) {
-                                DrawingMode.PEN -> "${penSize.toInt()}"
-                                DrawingMode.HIGHLIGHTER -> "${highlighterSize.toInt()}"
-                                DrawingMode.ERASER -> "${eraserSize.toInt()}"
-                                null -> "5"
-                            },
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-
-                    // Size preview
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(110.dp)
-                            .padding(top = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val previewColor = when (adjustingToolMode) {
-                            DrawingMode.PEN -> selectedColor
-                            DrawingMode.HIGHLIGHTER -> selectedColor.copy(alpha = 0.3f)
-                            DrawingMode.ERASER -> Color.LightGray
-                            null -> Color.Black
-                        }
-
-                        val previewSize = when (adjustingToolMode) {
+                    Slider(
+                        value = when (adjustingToolMode) {
                             DrawingMode.PEN -> penSize
                             DrawingMode.HIGHLIGHTER -> highlighterSize
                             DrawingMode.ERASER -> eraserSize
-                            null -> 5f
-                        }.coerceAtMost(100f)  // Ensure preview size is capped at 100dp
+                            null -> penSize
+                        },
+                        onValueChange = { newValue ->
+                            when (adjustingToolMode) {
+                                DrawingMode.PEN -> penSize = newValue
+                                DrawingMode.HIGHLIGHTER -> highlighterSize = newValue
+                                DrawingMode.ERASER -> eraserSize = newValue
+                                null -> Unit
+                            }
+                        },
+                        valueRange = 1f..50f
+                    )
 
-                        Box(
-                            modifier = Modifier
-                                .height(previewSize.dp)
-                                .width(200.dp)
-                                .background(previewColor, RoundedCornerShape(previewSize/2))
-                        )
+                    Divider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+
+                    // Color palette (two rows)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            // First row of colors
+                            colors.take(5).forEach { color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(color, RoundedCornerShape(16.dp))
+                                        .border(
+                                            width = 2.dp,
+                                            color = if (selectedColor == color)
+                                                MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable { selectedColor = color }
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            // Second row of colors
+                            colors.drop(5).forEach { color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(color, RoundedCornerShape(16.dp))
+                                        .border(
+                                            width = 2.dp,
+                                            color = if (selectedColor == color)
+                                                MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable { selectedColor = color }
+                                )
+                            }
+                        }
                     }
+
+                    Divider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                 }
             }
 
@@ -485,7 +437,7 @@ fun NotepadScreen(
                         shape = RoundedCornerShape(8.dp)
                     )
                     .clickable {
-                        // Hide size adjustment when clicking on the canvas
+                        // Hide size adjustment when clicking on the canvas area
                         showSizeAdjustment = false
                     }
             ) {
@@ -501,8 +453,8 @@ fun NotepadScreen(
                             drawingMode = newMode
                             showSizeAdjustment = false
                         },
-                        onPathDrawn = { newPaths ->
-                            // Optional: Do something with the paths
+                        onPathDrawn = { _: List<PathProperties> ->
+                            // Optional: handle drawn paths
                         },
                         undoState = undoRedoState
                     )
@@ -526,24 +478,6 @@ fun NotepadScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
-                    }
-
-                    // Helpful indicator showing stylus button functionality
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(16.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = "Hold stylus button for eraser",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
                     }
                 } else {
                     // Text editing mode
@@ -576,5 +510,37 @@ fun NotepadScreen(
                 }
             }
         }
+    }
+
+    // Save dialog
+    if (showSaveDialog) {
+        SaveNoteDialog(
+            allItems = allItems,
+            initialFolderId = currentFolderIdByVM,
+            initialName = if (currentNoteId == null)
+                "Untitled Note"
+            else
+                (fileSystemViewModel.getNote(currentNoteId!!)?.name ?: "Untitled Note"),
+            onDismiss = { showSaveDialog = false },
+            onConfirm = { folderId, name ->
+                // Create new note if we don't have one yet; otherwise rename and move
+                if (currentNoteId == null) {
+                    val newId = fileSystemViewModel.createNoteAndReturnId(name, folderId)
+                    currentNoteId = newId
+                    // Persist current content
+                    fileSystemViewModel.updateNoteContent(newId, noteText)
+                } else {
+                    // Existing note: move and rename to chosen location/name
+                    fileSystemViewModel.renameItem(currentNoteId!!, name)
+                    fileSystemViewModel.moveItem(currentNoteId!!, folderId)
+                    // Content auto-saves via LaunchedEffect(noteText)
+                }
+                showSaveDialog = false
+            },
+            onCreateFolder = { parentId, folderName ->
+                // Create and return the new folder id so dialog can auto-select it
+                fileSystemViewModel.createFolderAndReturnId(folderName, parentId)
+            }
+        )
     }
 }

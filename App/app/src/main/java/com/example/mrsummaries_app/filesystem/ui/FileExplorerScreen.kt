@@ -13,9 +13,39 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,7 +61,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FileExplorerScreen(
     onMenuClick: () -> Unit,
@@ -45,37 +75,23 @@ fun FileExplorerScreen(
     val selectedItemId by viewModel.selectedItemId.collectAsState()
     val allItems by viewModel.allItems.collectAsState()
 
+    // FIX: must be var when using "by remember { mutableStateOf(...) }" and writing to it later
     var showAddItemDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-
-    // Dialog states (find selected item from the up-to-date allItems)
-    val selectedItemForOperation = remember(selectedItemId, allItems) {
-        allItems.find { it.id == selectedItemId }
-    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(currentFolder?.name ?: "My Files")
-                },
+                title = { Text("Files") },
                 navigationIcon = {
                     IconButton(onClick = onMenuClick) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Menu"
-                        )
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 },
                 actions = {
-                    // Add new item
                     IconButton(onClick = { showAddItemDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add New Item"
-                        )
+                        Icon(Icons.Default.Add, contentDescription = "Add")
                     }
                 }
             )
@@ -86,35 +102,35 @@ fun FileExplorerScreen(
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            // Breadcrumb navigation
-            BreadcrumbNavigation(
+            // Breadcrumb: Root > folder1 > folder2 > ... > currentFolder
+            BreadcrumbBar(
                 path = currentPath,
                 currentFolderId = currentFolderId,
-                onFolderClick = { folderId ->
+                currentFolderName = currentFolder?.name,
+                onSegmentClick = { folderId ->
                     viewModel.navigateToFolder(folderId)
                 }
             )
 
             Divider()
 
-            // File listing
+            // Items
             FileSystemItemsList(
                 items = currentItems,
                 selectedItemId = selectedItemId,
-                onItemClick = { item ->
+                onItemClick = { item: FileSystemItem ->
                     when (item) {
                         is Folder -> viewModel.navigateToFolder(item.id)
                         is Note -> onNoteClick(item.id)
                         else -> Unit
                     }
                 },
-                onItemLongClick = { item ->
-                    // Long-press selects the item and reveals the action bar
+                onItemLongClick = { item: FileSystemItem ->
                     viewModel.selectItem(item.id)
                 }
             )
 
-            // Selection action bar (only shows when an item is selected)
+            // Selection bar
             AnimatedVisibility(
                 visible = selectedItemId != null,
                 enter = expandVertically(),
@@ -123,85 +139,70 @@ fun FileExplorerScreen(
                 SelectionActionBar(
                     onRenameClick = { showRenameDialog = true },
                     onMoveClick = { showMoveDialog = true },
-                    onDeleteClick = { showDeleteConfirmDialog = true },
+                    onDeleteClick = {
+                        selectedItemId?.let { viewModel.deleteItem(it) }
+                        viewModel.selectItem(null)
+                    },
                     onDismissClick = { viewModel.selectItem(null) }
                 )
             }
         }
-    }
 
-    // Dialog for adding new item (folder or note)
-    if (showAddItemDialog) {
-        AddItemDialog(
-            onDismiss = { showAddItemDialog = false },
-            onAddFolder = { name ->
-                viewModel.createFolder(name)
-                showAddItemDialog = false
-            },
-            onAddNote = { name ->
-                viewModel.createNote(name)
-                showAddItemDialog = false
-            }
-        )
-    }
+        // Add dialog
+        if (showAddItemDialog) {
+            AddItemDialog(
+                onDismiss = { showAddItemDialog = false },
+                onAddFolder = { name: String ->
+                    viewModel.createFolder(name)
+                    showAddItemDialog = false
+                },
+                onAddNote = { name: String ->
+                    val newId = viewModel.createNoteAndReturnId(name)
+                    onNoteClick(newId)
+                    showAddItemDialog = false
+                }
+            )
+        }
 
-    // Dialog for renaming an item
-    if (showRenameDialog && selectedItemForOperation != null) {
-        RenameDialog(
-            item = selectedItemForOperation,
-            onDismiss = {
-                showRenameDialog = false
-                viewModel.selectItem(null)
-            },
-            onRename = { newName ->
-                viewModel.renameItem(selectedItemForOperation.id, newName)
-                showRenameDialog = false
-                viewModel.selectItem(null)
+        // Rename dialog
+        if (showRenameDialog) {
+            val item = allItems.find { it.id == selectedItemId }
+            if (item != null) {
+                RenameDialog(
+                    item = item,
+                    onDismiss = { showRenameDialog = false },
+                    onRename = { newName: String ->
+                        viewModel.renameItem(item.id, newName)
+                        showRenameDialog = false
+                    }
+                )
             }
-        )
-    }
+        }
 
-    // Dialog for moving an item
-    if (showMoveDialog && selectedItemForOperation != null) {
-        val item = selectedItemForOperation // local copy
-        MoveItemDialogContent(
-            item = item,
-            allItems = allItems,
-            currentFolderId = currentFolderId,
-            onDismiss = {
-                showMoveDialog = false
-                viewModel.selectItem(null)
-            },
-            onMove = { newParentId ->
-                viewModel.moveItem(item.id, newParentId)
-                showMoveDialog = false
-                viewModel.selectItem(null)
+        // Move dialog
+        if (showMoveDialog) {
+            val item = allItems.find { it.id == selectedItemId }
+            if (item != null) {
+                MoveItemDialog(
+                    item = item,
+                    allItems = allItems,
+                    onDismiss = { showMoveDialog = false },
+                    onMove = { newParentId: String? ->
+                        viewModel.moveItem(item.id, newParentId)
+                        showMoveDialog = false
+                    }
+                )
             }
-        )
-    }
-
-    // Confirmation dialog for deletion
-    if (showDeleteConfirmDialog && selectedItemForOperation != null) {
-        DeleteConfirmationDialog(
-            item = selectedItemForOperation,
-            onDismiss = {
-                showDeleteConfirmDialog = false
-                viewModel.selectItem(null)
-            },
-            onConfirmDelete = {
-                viewModel.deleteItem(selectedItemForOperation.id)
-                showDeleteConfirmDialog = false
-                viewModel.selectItem(null)
-            }
-        )
+        }
     }
 }
 
 @Composable
-fun BreadcrumbNavigation(
-    path: List<Folder>,
+private fun BreadcrumbBar(
+    path: List<Folder>, // ancestors from root-most to parent of current
     currentFolderId: String,
-    onFolderClick: (String) -> Unit
+    currentFolderName: String?,
+    onSegmentClick: (String) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -210,35 +211,66 @@ fun BreadcrumbNavigation(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Home icon for root
-        IconButton(onClick = { onFolderClick("root") }) {
-            Icon(
-                imageVector = Icons.Default.Home,
-                contentDescription = "Home"
-            )
-        }
+        // Home/Root
+        Icon(
+            imageVector = Icons.Default.Home,
+            contentDescription = "Home"
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = "Root",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .clickable { onSegmentClick("root") }
+                .padding(horizontal = 4.dp),
+            color = if (currentFolderId == "root")
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurface
+        )
 
-        // Path segments
+        // Ancestors
         path.forEach { folder ->
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp)
             )
-
             Text(
                 text = folder.name,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier
-                    .clickable { onFolderClick(folder.id) }
-                    .padding(horizontal = 4.dp)
+                    .clickable { onSegmentClick(folder.id) }
+                    .padding(horizontal = 4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = if (currentFolderId == folder.id)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        // Current (non-clickable)
+        if (currentFolderId != "root") {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = currentFolderName ?: "Folder",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
 @Composable
-fun FileSystemItemsList(
+private fun FileSystemItemsList(
     items: List<FileSystemItem>,
     selectedItemId: String?,
     onItemClick: (FileSystemItem) -> Unit,
@@ -251,10 +283,7 @@ fun FileSystemItemsList(
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.Folder,
                     contentDescription = null,
@@ -273,12 +302,10 @@ fun FileSystemItemsList(
         LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
-            items(items) { item ->
-                val isSelected = item.id == selectedItemId
-
-                FileSystemItemCard(
+            items(items, key = { it.id }) { item: FileSystemItem ->
+                FileItemRow(
                     item = item,
-                    isSelected = isSelected,
+                    isSelected = selectedItemId == item.id,
                     onClick = { onItemClick(item) },
                     onLongClick = { onItemLongClick(item) }
                 )
@@ -287,30 +314,23 @@ fun FileSystemItemsList(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun FileSystemItemCard(
+private fun FileItemRow(
     item: FileSystemItem,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-
-    // Use combinedClickable to support onClick AND onLongClick properly.
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor =
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isSelected) 8.dp else 2.dp
@@ -322,63 +342,33 @@ fun FileSystemItemCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Item icon
             Icon(
-                imageVector = item.icon,
+                imageVector = when (item.type) {
+                    FileSystemItemType.FOLDER -> Icons.Default.Folder
+                    FileSystemItemType.NOTE -> Icons.Default.TextSnippet
+                    else -> Icons.Default.Folder
+                },
                 contentDescription = null,
                 tint = when (item.type) {
                     FileSystemItemType.FOLDER -> MaterialTheme.colorScheme.primary
                     FileSystemItemType.NOTE -> MaterialTheme.colorScheme.secondary
-                    // If additional types exist, map them here; fallback to onSurface
                     else -> MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.size(24.dp)
+                }
             )
-
             Spacer(modifier = Modifier.width(12.dp))
-
-            // Item details
-            Column(
+            Text(
+                text = item.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = item.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = "Modified: ${dateFormatter.format(Date(item.modifiedAt))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-
-            // Trailing type indicator
-            when (item) {
-                is Folder -> {
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Open Folder",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                is Note -> {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Note",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                else -> Unit
-            }
+            )
         }
     }
 }
 
 @Composable
-fun SelectionActionBar(
+private fun SelectionActionBar(
     onRenameClick: () -> Unit,
     onMoveClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -399,31 +389,24 @@ fun SelectionActionBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Rename button
             IconButton(onClick = onRenameClick) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Edit, contentDescription = "Rename")
                     Text("Rename", style = MaterialTheme.typography.labelSmall)
                 }
             }
-
-            // Move button
             IconButton(onClick = onMoveClick) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.DriveFileMove, contentDescription = "Move")
                     Text("Move", style = MaterialTheme.typography.labelSmall)
                 }
             }
-
-            // Delete button
             IconButton(onClick = onDeleteClick) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
                     Text("Delete", style = MaterialTheme.typography.labelSmall, color = Color.Red)
                 }
             }
-
-            // Cancel selection
             IconButton(onClick = onDismissClick) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Close, contentDescription = "Cancel")
@@ -435,50 +418,39 @@ fun SelectionActionBar(
 }
 
 @Composable
-fun AddItemDialog(
+private fun AddItemDialog(
     onDismiss: () -> Unit,
     onAddFolder: (String) -> Unit,
     onAddNote: (String) -> Unit
 ) {
     var itemName by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf("folder") }
+    var type by remember { mutableStateOf("folder") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create New Item") },
+        title = { Text("Create New") },
         text = {
             Column {
-                // Type selection
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { selectedType = "folder" }
+                        modifier = Modifier.clickable { type = "folder" }
                     ) {
-                        RadioButton(
-                            selected = selectedType == "folder",
-                            onClick = { selectedType = "folder" }
-                        )
+                        RadioButton(selected = type == "folder", onClick = { type = "folder" })
                         Text("Folder", modifier = Modifier.padding(start = 8.dp))
                     }
-
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { selectedType = "note" }
+                        modifier = Modifier.clickable { type = "note" }
                     ) {
-                        RadioButton(
-                            selected = selectedType == "note",
-                            onClick = { selectedType = "note" }
-                        )
+                        RadioButton(selected = type == "note", onClick = { type = "note" })
                         Text("Note", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Name input
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = itemName,
                     onValueChange = { itemName = it },
@@ -491,146 +463,70 @@ fun AddItemDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (itemName.isNotBlank()) {
-                        if (selectedType == "folder") {
-                            onAddFolder(itemName)
-                        } else {
-                            onAddNote(itemName)
-                        }
-                        onDismiss()
-                    }
+                    if (type == "folder") onAddFolder(itemName) else onAddNote(itemName)
                 },
                 enabled = itemName.isNotBlank()
-            ) {
-                Text("Create")
-            }
+            ) { Text("Create") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
 @Composable
-fun RenameDialog(
+private fun RenameDialog(
     item: FileSystemItem,
     onDismiss: () -> Unit,
     onRename: (String) -> Unit
 ) {
     var newName by remember { mutableStateOf(item.name) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename ${if (item.type == FileSystemItemType.FOLDER) "Folder" else "Note"}") },
+        title = { Text("Rename") },
         text = {
             OutlinedTextField(
                 value = newName,
                 onValueChange = { newName = it },
-                label = { Text("Name") },
                 singleLine = true,
+                label = { Text("New name") },
                 modifier = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
             Button(
-                onClick = {
-                    if (newName.isNotBlank()) {
-                        onRename(newName)
-                    }
-                },
+                onClick = { onRename(newName) },
                 enabled = newName.isNotBlank() && newName != item.name
-            ) {
-                Text("Rename")
-            }
+            ) { Text("Rename") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-fun DeleteConfirmationDialog(
-    item: FileSystemItem,
-    onDismiss: () -> Unit,
-    onConfirmDelete: () -> Unit
-) {
-    val itemType = if (item.type == FileSystemItemType.FOLDER) "folder" else "note"
-    val warningMessage = if (item.type == FileSystemItemType.FOLDER) {
-        "This will delete the folder and all its contents. This action cannot be undone."
-    } else {
-        "This will permanently delete this note. This action cannot be undone."
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Delete $itemType") },
-        text = {
-            Column {
-                Text("Are you sure you want to delete '${item.name}'?")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = warningMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirmDelete,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text("Delete")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
 /**
- * Dialog content for moving an item into another folder.
- * This is implemented as a top-level composable so references are resolvable where used.
+ * Move dialog:
+ * - Excludes real Root from folders list (we render a single explicit Root option).
+ * - Prevents moving a folder inside its own descendants.
  */
 @Composable
-fun MoveItemDialogContent(
+private fun MoveItemDialog(
     item: FileSystemItem,
     allItems: List<FileSystemItem>,
-    currentFolderId: String,
     onDismiss: () -> Unit,
     onMove: (String?) -> Unit
 ) {
-    // Extract folders from all items
-    val folders: List<Folder> = remember(allItems) {
-        allItems.filterIsInstance<Folder>()
-            .filter { it.id != item.id } // Can't move to itself
-    }
+    val folders = remember(allItems) { allItems.filterIsInstance<Folder>().filter { it.id != "root" } }
 
-    // Don't show folders that are descendants of the current item (if it's a folder)
-    val validFolders: List<Folder> = remember(folders, item) {
+    val validFolders = remember(item, folders) {
         if (item is Folder) {
-            // Function to get all descendant folder IDs
-            fun getDescendantIds(folderId: String): Set<String> {
-                val descendants = mutableSetOf<String>()
-                folders.filter { it.parentId == folderId }.forEach { childFolder ->
-                    descendants.add(childFolder.id)
-                    descendants.addAll(getDescendantIds(childFolder.id))
+            fun descendants(id: String): Set<String> {
+                val ids = mutableSetOf<String>()
+                folders.filter { it.parentId == id }.forEach { child ->
+                    ids.add(child.id)
+                    ids.addAll(descendants(child.id))
                 }
-                return descendants
+                return ids // explicit return to avoid "Missing return statement"
             }
-
-            val invalidIds = getDescendantIds(item.id) + item.id
-            folders.filter { it.id !in invalidIds }
+            val invalid = descendants(item.id) + item.id
+            folders.filter { it.id !in invalid }
         } else {
             folders
         }
@@ -644,7 +540,7 @@ fun MoveItemDialogContent(
         text = {
             Column {
                 Text(
-                    "Select destination folder for '${item.name}':",
+                    text = "Select destination:",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -668,23 +564,19 @@ fun MoveItemDialogContent(
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Home,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("My Files (Root)")
+                        Text("Root")
                     }
                 }
 
-                // Folder options - use explicit typing to avoid inference problems
+                // Other folders
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp)
                 ) {
-                    items(validFolders) { folder: Folder ->
+                    items(validFolders, key = { it.id }) { folder ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -703,11 +595,7 @@ fun MoveItemDialogContent(
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Folder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(folder.name)
                             }
@@ -720,14 +608,8 @@ fun MoveItemDialogContent(
             Button(
                 onClick = { onMove(selectedFolderId) },
                 enabled = selectedFolderId != null && selectedFolderId != item.parentId
-            ) {
-                Text("Move")
-            }
+            ) { Text("Move") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }

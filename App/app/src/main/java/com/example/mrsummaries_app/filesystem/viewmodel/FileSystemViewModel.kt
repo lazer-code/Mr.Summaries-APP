@@ -1,7 +1,8 @@
 package com.example.mrsummaries_app.filesystem.viewmodel
 
+import android.app.Application
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mrsummaries_app.filesystem.model.FileSystemItem
 import com.example.mrsummaries_app.filesystem.model.Folder
@@ -11,15 +12,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class FileSystemViewModel : ViewModel() {
-    private val repository = FileSystemRepository()
+/**
+ * ViewModel now extends AndroidViewModel to obtain Application context,
+ * so the repository can persist data on disk across app restarts.
+ */
+class FileSystemViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = FileSystemRepository(application.applicationContext)
 
     // Current folder ID being viewed
-    private val _currentFolderId = MutableStateFlow<String>("root")
+    private val _currentFolderId = MutableStateFlow("root")
     val currentFolderId: StateFlow<String> = _currentFolderId
 
     // Currently selected item (for operations)
@@ -29,11 +33,11 @@ class FileSystemViewModel : ViewModel() {
     // Track expanded state of folders
     val expandedFolders = mutableStateMapOf<String, Boolean>()
 
-    // All items in the file system (for move operations and global search)
+    // All items in the file system
     val allItems: StateFlow<List<FileSystemItem>> = repository.getAllItems()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Current items in the viewed folder - FIXED IMPLEMENTATION
+    // Items in current folder
     val currentFolderItems: StateFlow<List<FileSystemItem>> = combine(
         repository.getAllItems(),
         _currentFolderId
@@ -41,7 +45,7 @@ class FileSystemViewModel : ViewModel() {
         items.filter { it.parentId == folderId }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Current folder details - FIXED IMPLEMENTATION
+    // Current folder details
     val currentFolder: StateFlow<Folder?> = combine(
         repository.getAllItems(),
         _currentFolderId
@@ -49,7 +53,7 @@ class FileSystemViewModel : ViewModel() {
         items.find { it.id == folderId && it is Folder } as? Folder
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    // Path to current folder (breadcrumb) - FIXED IMPLEMENTATION
+    // Path to current folder (breadcrumb)
     val currentPath: StateFlow<List<Folder>> = combine(
         repository.getAllItems(),
         _currentFolderId
@@ -73,13 +77,19 @@ class FileSystemViewModel : ViewModel() {
         expandedFolders[folderId] = !(expandedFolders[folderId] ?: false)
     }
 
-    // CRUD Operations - FIXED TO ENSURE REACTIVITY
+    // Create folder
     fun createFolder(name: String, parentId: String? = currentFolderId.value) {
         viewModelScope.launch {
             repository.addFolder(name, parentId)
         }
     }
 
+    // Create folder and return ID (for dialogs that need to auto-select)
+    fun createFolderAndReturnId(name: String, parentId: String? = currentFolderId.value): String {
+        return repository.addFolder(name, parentId).id
+    }
+
+    // Create note (no implicit default folder)
     fun createNote(name: String, parentId: String? = currentFolderId.value) {
         viewModelScope.launch {
             repository.addNote(name, parentId)
@@ -109,8 +119,8 @@ class FileSystemViewModel : ViewModel() {
 
             // If we're deleting the current folder, navigate to parent
             if (itemId == currentFolderId.value) {
-                val currentFolder = repository.getFolder(currentFolderId.value)
-                currentFolder?.parentId?.let { parentId ->
+                val current = repository.getFolder(currentFolderId.value)
+                current?.parentId?.let { parentId ->
                     navigateToFolder(parentId)
                 } ?: navigateToFolder("root")
             }
@@ -147,7 +157,6 @@ class FileSystemViewModel : ViewModel() {
                 break
             }
         }
-
         return path
     }
 }

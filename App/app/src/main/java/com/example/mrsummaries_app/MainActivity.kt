@@ -51,7 +51,7 @@ fun MainScreen() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     var isDrawerOpen by remember { mutableStateOf(false) }
 
-    // CREATE SINGLE INSTANCE OF VIEWMODEL
+    // Single shared instance of FileSystemViewModel across the whole app
     val fileSystemViewModel: FileSystemViewModel = viewModel()
 
     AppDrawer(
@@ -78,11 +78,15 @@ fun MainScreen() {
             }
             fileSystemViewModel.navigateToFolder(folderId)
         },
+        navigateToNote = { noteId ->
+            navController.navigate("note/$noteId") {
+                launchSingleTop = true
+            }
+        },
         drawerState = drawerState,
         onDrawerStateChange = { isOpen ->
             isDrawerOpen = isOpen
         },
-        // PASS THE VIEWMODEL TO DRAWER
         fileSystemViewModel = fileSystemViewModel
     ) {
         NavHost(navController = navController, startDestination = "home") {
@@ -104,12 +108,13 @@ fun MainScreen() {
                         navController.navigate("summary")
                     },
                     onNewNoteClick = {
-                        // Create a new note and navigate to it
+                        // Create a new note and navigate to it (into default folder logic)
                         val newNote = fileSystemViewModel.createNoteAndReturnId("Untitled Note")
                         navController.navigate("note/$newNote")
                     }
                 )
             }
+            // Pass the SAME ViewModel instance to NotepadScreen (fixes save dialog folder list)
             composable("notepad") {
                 NotepadScreen(
                     onMenuClick = {
@@ -117,7 +122,8 @@ fun MainScreen() {
                             drawerState.open()
                             isDrawerOpen = true
                         }
-                    }
+                    },
+                    fileSystemViewModel = fileSystemViewModel
                 )
             }
             composable("summary") {
@@ -130,7 +136,7 @@ fun MainScreen() {
                     }
                 )
             }
-            // File Explorer Screen - PASS THE VIEWMODEL
+            // File Explorer Screen - PASS THE SAME VIEWMODEL
             composable(
                 route = "files/{folderId}",
                 arguments = listOf(
@@ -156,7 +162,7 @@ fun MainScreen() {
                     viewModel = fileSystemViewModel // PASS THE SAME VIEWMODEL INSTANCE
                 )
             }
-            // Note Editing Screen
+            // Note Editing Screen - PASS THE SAME VIEWMODEL
             composable(
                 route = "note/{noteId}",
                 arguments = listOf(
@@ -175,7 +181,7 @@ fun MainScreen() {
                         }
                     },
                     noteId = noteId,
-                    fileSystemViewModel = fileSystemViewModel // PASS THE SAME VIEWMODEL INSTANCE
+                    fileSystemViewModel = fileSystemViewModel // ensure shared folders are visible in save dialog
                 )
             }
         }

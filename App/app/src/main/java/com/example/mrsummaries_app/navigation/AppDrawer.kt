@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -30,9 +31,10 @@ fun AppDrawer(
     navigateToNotepad: () -> Unit,
     navigateToSummary: () -> Unit,
     navigateToFolder: (String) -> Unit,
+    navigateToNote: (String) -> Unit, // NEW: open a note from the side-menu
     drawerState: DrawerState,
     onDrawerStateChange: (Boolean) -> Unit,
-    fileSystemViewModel: FileSystemViewModel, // ADD VIEWMODEL PARAMETER
+    fileSystemViewModel: FileSystemViewModel,
     content: @Composable () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -48,31 +50,50 @@ fun AppDrawer(
                         .background(MaterialTheme.colorScheme.surface)
                         .padding(16.dp)
                 ) {
-                    // App Header
-                    Column(
+                    // Header with "3 horizontal lines" button to hide the drawer
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Mr. Summaries",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Your Digital University Notebook",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onDrawerStateChange(false)
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Hide menu"
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text(
+                                text = "Mr. Summaries",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Your Digital University Notebook",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
                     }
 
                     Divider()
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Main Navigation Items
+                    // Navigation
                     Text(
                         text = "Navigation",
                         style = MaterialTheme.typography.labelLarge,
@@ -120,7 +141,7 @@ fun AppDrawer(
 
                     Divider(modifier = Modifier.padding(vertical = 16.dp))
 
-                    // Folder Tree Navigation - PASS THE VIEWMODEL
+                    // Folders and Notes Tree
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -134,7 +155,14 @@ fun AppDrawer(
                                     onDrawerStateChange(false)
                                 }
                             },
-                            viewModel = fileSystemViewModel // PASS THE VIEWMODEL
+                            onNoteSelected = { noteId ->
+                                navigateToNote(noteId)
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onDrawerStateChange(false)
+                                }
+                            },
+                            viewModel = fileSystemViewModel
                         )
                     }
 
@@ -149,7 +177,7 @@ fun AppDrawer(
             }
         },
         drawerState = drawerState,
-        gesturesEnabled = false, // Disable gesture-based drawer opening
+        gesturesEnabled = false,
         content = content
     )
 }
