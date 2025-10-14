@@ -15,7 +15,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
  * unexpected nullability when the layout or resources are missing.
  */
 class MainActivity : AppCompatActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
