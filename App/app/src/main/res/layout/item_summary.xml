@@ -1,49 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Updated item layout to include an optional icon for file/folder -->
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_margin="8dp"
+<!-- Updated summary item layout: rounded corners via MaterialCardView and theme-aware text colors.
+     IDs kept as expected by adapters: icon_summary, tv_title, tv_course, tv_description -->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_summary"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="12dp">
+    android:layout_marginVertical="6dp"
+    android:layout_marginHorizontal="12dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardUseCompatPadding="true"
+    android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
-        android:orientation="horizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:orientation="horizontal">
 
         <ImageView
             android:id="@+id/icon_summary"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@drawable/ic_summaries"
-            android:contentDescription="@null" />
+            android:layout_marginEnd="12dp"
+            android:contentDescription="@string/summary_icon"
+            app:tint="?attr/colorPrimary" />
 
         <LinearLayout
-            android:orientation="vertical"
-            android:layout_marginStart="12dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/tv_title"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/summary_title"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                android:textColor="?attr/colorOnSurface" />
 
             <TextView
                 android:id="@+id/tv_course"
-                android:textSize="14sp"
-                android:layout_marginTop="2dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/course"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                android:textColor="?attr/colorOnSurface"
+                android:alpha="0.9" />
 
             <TextView
                 android:id="@+id/tv_description"
-                android:textSize="13sp"
-                android:layout_marginTop="6dp"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:text="@string/tap_to_view"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+                android:textColor="?attr/colorOnSurface"
+                android:alpha="0.8"
+                android:layout_marginTop="4dp" />
         </LinearLayout>
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>
