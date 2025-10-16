@@ -1,52 +1,173 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:padding="8dp"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootEditor"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:attr/colorBackground">
 
-    <com.example.mrsummaries_app.ui.note.NoteCanvasView
-        android:id="@+id/note_canvas"
+    <!-- Top toolbar with close button -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="56dp"
+        android:padding="8dp">
 
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"
+            android:text="Note Editor"
+            android:textSize="18sp"
+            android:layout_marginStart="12dp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnClose"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?selectableItemBackgroundBorderless"
+            android:contentDescription="Close"
+            android:src="@drawable/ic_close" />
+
+    </RelativeLayout>
+
+    <!-- Tools bar moved to TOP of editor (below title toolbar) -->
     <LinearLayout
-        android:layout_gravity="bottom|start"
-        android:orientation="vertical"
-        android:background="#AA000000"
+        android:id="@+id/toolsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:orientation="horizontal"
         android:padding="8dp"
-        android:layout_margin="12dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content">
+        android:gravity="center_vertical"
+        android:background="@drawable/rounded_panel">
 
         <ImageButton
-            android:id="@+id/btn_tool_pen"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_pen" />
+            android:id="@+id/btnToolPen"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_pen"
+            android:contentDescription="Pen" />
+
         <ImageButton
-            android:id="@+id/btn_tool_highlighter"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_highlighter" />
+            android:id="@+id/btnToolHighlighter"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_highlighter"
+            android:contentDescription="Highlighter" />
+
         <ImageButton
-            android:id="@+id/btn_tool_eraser"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_eraser" />
+            android:id="@+id/btnToolEraser"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_eraser"
+            android:contentDescription="Eraser" />
+
         <ImageButton
-            android:id="@+id/btn_tool_text"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_text" />
+            android:id="@+id/btnToolLasso"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_lasso"
+            android:contentDescription="Lasso" />
+
         <ImageButton
-            android:id="@+id/btn_undo"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_undo" />
+            android:id="@+id/btnToolText"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_text"
+            android:contentDescription="Text" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
         <ImageButton
-            android:id="@+id/btn_redo"
+            android:id="@+id/btnUndo"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_redo" />
+            android:src="@drawable/ic_undo"
+            android:contentDescription="Undo" />
+
+        <ImageButton
+            android:id="@+id/btnRedo"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_redo"
+            android:contentDescription="Redo" />
+
     </LinearLayout>
-</FrameLayout>
+
+    <!-- Configuration bar (hidden by default) kept below tools for quick access -->
+    <LinearLayout
+        android:id="@+id/configBar"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:visibility="gone"
+        android:gravity="center_vertical"
+        android:background="@drawable/rounded_panel">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Size"
+            android:layout_marginStart="8dp" />
+
+        <Button
+            android:id="@+id/btnSizeMinus"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="-" />
+
+        <TextView
+            android:id="@+id/tvSizeLabel"
+            android:layout_width="40dp"
+            android:layout_height="wrap_content"
+            android:text="6"
+            android:gravity="center"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btnSizePlus"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="+" />
+
+        <!-- Recent colors horizontal list -->
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <LinearLayout
+                android:id="@+id/recentColorsContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- custom color picker launcher -->
+        <ImageButton
+            android:id="@+id/btnCustomColor"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:contentDescription="Custom color"
+            android:src="@drawable/ic_palette"
+            android:background="?selectableItemBackgroundBorderless" />
+
+    </LinearLayout>
+
+    <!-- Canvas area -->
+    <com.example.mrsummaries_app.ui.note.NoteCanvasView
+        android:id="@+id/noteCanvas"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@android:color/white" />
+
+</LinearLayout>

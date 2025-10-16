@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rounded panel background used for tool/config bars.
+  - Uses theme attributes so it adapts to light/dark themes.
+  - 12dp corner radius, subtle stroke for contrast.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Fill: use surface color from theme so it adapts to the app theme -->
+    <solid android:color="?attr/colorSurface" />
+
+    <!-- Subtle border to separate the panel from background -->
+    <stroke
+        android:width="1dp"
+        android:color="?attr/colorOnSurface"
+        android:dashGap="0dp" />
+
+    <!-- Rounded corners -->
+    <corners android:radius="12dp" />
+
+    <!-- Small internal padding for comfortable spacing when used as background -->
+    <padding
+        android:left="8dp"
+        android:top="6dp"
+        android:right="8dp"
+        android:bottom="6dp" />
+</shape>

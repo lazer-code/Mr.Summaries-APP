@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dialogColorRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tvPaletteTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Choose a color"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Predefined palette grid: show actual colors so user understands them -->
+        <GridLayout
+            android:id="@+id/paletteGrid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="6"
+            android:rowCount="3"
+            android:alignmentMode="alignMargins"
+            android:useDefaultMargins="true">
+
+            <!-- Example swatches: we show actual colored Views / ImageButtons.
+                 You can extend this list or populate dynamically from NoteEditorActivity. -->
+            <View android:id="@+id/swatch_1" android:layout_width="40dp" android:layout_height="40dp" android:background="#000000" />
+            <View android:id="@+id/swatch_2" android:layout_width="40dp" android:layout_height="40dp" android:background="#FF0000" />
+            <View android:id="@+id/swatch_3" android:layout_width="40dp" android:layout_height="40dp" android:background="#00FF00" />
+            <View android:id="@+id/swatch_4" android:layout_width="40dp" android:layout_height="40dp" android:background="#0000FF" />
+            <View android:id="@+id/swatch_5" android:layout_width="40dp" android:layout_height="40dp" android:background="#FFFF00" />
+            <View android:id="@+id/swatch_6" android:layout_width="40dp" android:layout_height="40dp" android:background="#FF00FF" />
+
+            <View android:id="@+id/swatch_7" android:layout_width="40dp" android:layout_height="40dp" android:background="#00FFFF" />
+            <View android:id="@+id/swatch_8" android:layout_width="40dp" android:layout_height="40dp" android:background="#4CAF50" />
+            <View android:id="@+id/swatch_9" android:layout_width="40dp" android:layout_height="40dp" android:background="#2196F3" />
+            <View android:id="@+id/swatch_10" android:layout_width="40dp" android:layout_height="40dp" android:background="#9C27B0" />
+            <View android:id="@+id/swatch_11" android:layout_width="40dp" android:layout_height="40dp" android:background="#FF9800" />
+            <View android:id="@+id/swatch_12" android:layout_width="40dp" android:layout_height="40dp" android:background="#795548" />
+
+            <View android:id="@+id/swatch_13" android:layout_width="40dp" android:layout_height="40dp" android:background="#E91E63" />
+            <View android:id="@+id/swatch_14" android:layout_width="40dp" android:layout_height="40dp" android:background="#607D8B" />
+            <View android:id="@+id/swatch_15" android:layout_width="40dp" android:layout_height="40dp" android:background="#F44336" />
+            <View android:id="@+id/swatch_16" android:layout_width="40dp" android:layout_height="40dp" android:background="#03A9F4" />
+            <View android:id="@+id/swatch_17" android:layout_width="40dp" android:layout_height="40dp" android:background="#8BC34A" />
+            <View android:id="@+id/swatch_18" android:layout_width="40dp" android:layout_height="40dp" android:background="#FFC107" />
+        </GridLayout>
+
+        <TextView
+            android:id="@+id/tvOr"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Or pick a custom color..."
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnMoreColors"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="More colors" />
+    </LinearLayout>
+</ScrollView>

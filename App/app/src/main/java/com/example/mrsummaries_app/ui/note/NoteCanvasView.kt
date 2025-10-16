@@ -12,10 +12,11 @@ import kotlin.math.abs
  * Simplified canvas implementing pen, highlighter (straight line), eraser (stroke-based),
  * undo/redo and basic text boxes.
  *
- * - Strokes are stored and serialized as simple objects for persistence.
- * - Supports stylus primary button detection to temporarily switch to eraser.
- *
- * This is not a production-ready ink engine but a reasonable starting point matching requirements.
+ * Added:
+ * - currentColor/currentWidth with setters
+ * - onToolConfigRequest callback invoked when the same tool is clicked again
+ * - basic lasso tool: draw arbitrary lasso path, select strokes whose bounds intersect lasso bounding rect
+ * - selection visual overlay
  */
 class NoteCanvasView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
@@ -30,6 +31,8 @@ class NoteCanvasView @JvmOverloads constructor(
 
     private var currentPath = Path()
     private var currentStroke: Stroke? = null
+
+    // Appearance
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 6f
@@ -44,18 +47,67 @@ class NoteCanvasView @JvmOverloads constructor(
         alpha = 160
     }
 
+    // Selection / lasso
+    private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = Color.BLUE
+        strokeWidth = 3f
+        pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
+    }
+
     private var tool = Tool.PEN
     private var onChange: (() -> Unit)? = null
+
+    // Called when user clicks the currently-selected tool again to request configuration UI
+    private var onToolConfigRequest: ((Tool) -> Unit)? = null
+
+    // Current drawing parameters
+    private var currentColor: Int = Color.BLACK
+    private var currentWidth: Float = 6f
+
+    // Lasso state
+    private var lassoPath: Path? = null
+    private var lassoBounds: RectF? = null
+    private val selectedStrokeIndices = mutableSetOf<Int>()
 
     fun setOnChangeListener(f: () -> Unit) {
         onChange = f
     }
 
+    fun setOnToolConfigRequestListener(f: (Tool) -> Unit) {
+        onToolConfigRequest = f
+    }
+
+    fun setColor(color: Int) {
+        currentColor = color
+        // update paints used for live drawing (not retroactively changing strokes)
+        paint.color = currentColor
+        invalidate()
+    }
+
+    fun setWidth(width: Float) {
+        currentWidth = width
+        paint.strokeWidth = currentWidth
+        highlightPaint.strokeWidth = currentWidth * 6f // keep highlighter wider by default multiplier
+        invalidate()
+    }
+
+    fun getCurrentColor(): Int = currentColor
+    fun getCurrentWidth(): Float = currentWidth
+
     fun setTool(t: Tool) {
         if (tool == t) {
-            // clicking again closes any potential configuration UI — placeholder
+            // clicking same tool again -> request configuration UI (Activity should show config bar)
+            onToolConfigRequest?.invoke(t)
+        } else {
+            // clear lasso selection if switching away
+            if (tool == Tool.LASSO) {
+                lassoPath = null
+                lassoBounds = null
+                selectedStrokeIndices.clear()
+            }
             tool = t
-        } else tool = t
+        }
     }
 
     fun undo() {
@@ -81,9 +133,17 @@ class NoteCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    // Added: function used by onTouchEvent for Tool.TEXT (fixes unresolved reference)
+    private fun addTextAt(x: Float, y: Float) {
+        strokes.add(Stroke.TextStroke("Text", x, y))
+        onChange?.invoke()
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        strokes.forEach { s ->
+        // draw strokes
+        strokes.forEachIndexed { idx, s ->
             when (s) {
                 is Stroke.PathStroke -> {
                     paint.strokeWidth = s.width
@@ -95,7 +155,6 @@ class NoteCanvasView @JvmOverloads constructor(
                     highlightPaint.strokeWidth = s.width
                     highlightPaint.color = s.color
                     highlightPaint.alpha = s.alpha
-                    // highlight implemented as straight line
                     canvas.drawLine(s.startX, s.startY, s.endX, s.endY, highlightPaint)
                 }
                 is Stroke.TextStroke -> {
@@ -106,8 +165,25 @@ class NoteCanvasView @JvmOverloads constructor(
                     canvas.drawText(s.text, s.x, s.y, tpaint)
                 }
             }
+            // draw selection box around selected strokes
+            if (selectedStrokeIndices.contains(idx)) {
+                val bounds = RectF()
+                when (s) {
+                    is Stroke.PathStroke -> {
+                        s.path.computeBounds(bounds, true)
+                    }
+                    is Stroke.HighlightStroke -> {
+                        bounds.set(minOf(s.startX, s.endX), minOf(s.startY, s.endY), maxOf(s.startX, s.endX), maxOf(s.startY, s.endY))
+                    }
+                    is Stroke.TextStroke -> {
+                        bounds.set(s.x - 10f, s.y - 48f, s.x + 10f + (s.text.length * 12f), s.y + 12f)
+                    }
+                }
+                canvas.drawRect(bounds, selectionPaint)
+            }
         }
-        // draw current path
+
+        // draw current stroke in progress
         currentStroke?.let { cs ->
             when (cs) {
                 is Stroke.PathStroke -> {
@@ -125,6 +201,20 @@ class NoteCanvasView @JvmOverloads constructor(
                 else -> {}
             }
         }
+
+        // draw lasso path (if drawing)
+        lassoPath?.let { lp ->
+            canvas.drawPath(lp, selectionPaint)
+            lassoBounds?.let { lb ->
+                // also draw its bounding rectangle lightly
+                val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    color = Color.CYAN
+                    strokeWidth = 2f
+                }
+                canvas.drawRect(lb, rectPaint)
+            }
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -140,16 +230,10 @@ class NoteCanvasView @JvmOverloads constructor(
             Tool.PEN -> handlePen(event, x, y)
             Tool.HIGHLIGHTER -> handleHighlighter(event, x, y)
             Tool.ERASER -> handleEraser(event, x, y)
-            Tool.LASSO -> { /* placeholder: could select strokes */ }
-            Tool.TEXT -> { /* click to add text */ if (event.action == MotionEvent.ACTION_UP) addTextAt(x, y) }
+            Tool.LASSO -> handleLasso(event, x, y)
+            Tool.TEXT -> { if (event.action == MotionEvent.ACTION_UP) addTextAt(x, y) }
         }
         return true
-    }
-
-    private fun addTextAt(x: Float, y: Float) {
-        strokes.add(Stroke.TextStroke("Text", x, y))
-        onChange?.invoke()
-        invalidate()
     }
 
     private fun handlePen(event: MotionEvent, x: Float, y: Float) {
@@ -157,7 +241,7 @@ class NoteCanvasView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 currentPath = Path()
                 currentPath.moveTo(x, y)
-                currentStroke = Stroke.PathStroke(Path(currentPath), color = Color.BLACK, width = 6f)
+                currentStroke = Stroke.PathStroke(Path(currentPath), color = currentColor, width = currentWidth)
                 undone.clear()
             }
             MotionEvent.ACTION_MOVE -> {
@@ -176,7 +260,7 @@ class NoteCanvasView @JvmOverloads constructor(
     private fun handleHighlighter(event: MotionEvent, x: Float, y: Float) {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                currentStroke = Stroke.HighlightStroke(startX = x, startY = y, endX = x, endY = y, color = Color.YELLOW, width = 36f)
+                currentStroke = Stroke.HighlightStroke(startX = x, startY = y, endX = x, endY = y, color = currentColor.takeIf { it != 0 } ?: Color.YELLOW, width = maxOf(currentWidth * 6f, 24f), alpha = 160)
                 undone.clear()
             }
             MotionEvent.ACTION_MOVE -> {
@@ -210,6 +294,43 @@ class NoteCanvasView @JvmOverloads constructor(
                 invalidate()
             }
         }
+    }
+
+    private fun handleLasso(event: MotionEvent, x: Float, y: Float) {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                lassoPath = Path()
+                lassoPath?.moveTo(x, y)
+                lassoBounds = RectF(x, y, x, y)
+                selectedStrokeIndices.clear()
+            }
+            MotionEvent.ACTION_MOVE -> {
+                lassoPath?.lineTo(x, y)
+                lassoBounds?.let { it.union(x, y) }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                // compute bounding rect of lasso and select strokes whose bounds intersect the rect
+                val lb = lassoBounds ?: RectF()
+                val selected = mutableSetOf<Int>()
+                strokes.forEachIndexed { idx, s ->
+                    val bounds = RectF()
+                    when (s) {
+                        is Stroke.PathStroke -> s.path.computeBounds(bounds, true)
+                        is Stroke.HighlightStroke -> bounds.set(minOf(s.startX, s.endX), minOf(s.startY, s.endY), maxOf(s.startX, s.endX), maxOf(s.startY, s.endY))
+                        is Stroke.TextStroke -> bounds.set(s.x - 10f, s.y - 48f, s.x + 10f + (s.text.length * 12f), s.y + 12f)
+                    }
+                    if (RectF.intersects(bounds, lb)) {
+                        selected.add(idx)
+                    }
+                }
+                selectedStrokeIndices.clear()
+                selectedStrokeIndices.addAll(selected)
+                // keep lasso path visible for selection visual; user can switch tools to clear
+                onChange?.invoke()
+                invalidate()
+            }
+        }
+        invalidate()
     }
 
     fun toJson(): String {

@@ -17,4 +17,8 @@
     <string name="course">Course</string>
     <string name="search_summaries">Search summaries</string>
     <string name="search">Search</string>
+    <string name="highlighter">Highlighter</string>
+    <string name="pencil">Pencil</string>
+    <string name="eraser">Eraser</string>
+    <string name="text">Text</string>
 </resources>

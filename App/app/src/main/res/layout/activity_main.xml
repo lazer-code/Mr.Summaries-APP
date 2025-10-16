@@ -16,7 +16,7 @@
             android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar"
             app:title="@string/app_name" />
 
-        <fragment
+        <androidx.fragment.app.FragmentContainerView
             android:id="@+id/nav_host_fragment"
             android:name="androidx.navigation.fragment.NavHostFragment"
             android:layout_marginTop="?attr/actionBarSize"
