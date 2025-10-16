@@ -1,0 +1,9 @@
+<!-- Simple rounded rectangle background to apply on list items, cards, and small surfaces -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- Use a neutral surface color; in layouts, set android:backgroundTint to @color/...? -->
+    <solid android:color="?attr/colorSurface" />
+    <corners android:radius="12dp" />
+    <!-- optional subtle stroke for light mode; will be invisible if stroke color matches surface -->
+    <stroke android:width="1dp" android:color="@android:color/transparent" />
+</shape>

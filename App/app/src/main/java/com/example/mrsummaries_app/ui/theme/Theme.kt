@@ -15,16 +15,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+// Build clearer, modern color schemes with background/surface/onSurface and a single accent.
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = DarkPrimary,
+    onPrimary = DarkOnPrimary,
+    background = DarkBackground,
+    surface = DarkSurface,
+    onSurface = DarkOnSurface,
+    secondary = DarkPrimary
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = LightPrimary,
+    onPrimary = LightOnPrimary,
+    background = LightBackground,
+    surface = LightSurface,
+    onSurface = LightOnSurface,
+    secondary = LightPrimary
 )
 
 @Composable
@@ -46,7 +53,9 @@ fun MrSummariesTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
+            // Use a subtle status bar color that matches background for modern feel
+            window.statusBarColor = colorScheme.background.toArgb()
+            // Light status bar icons when in light theme -> appearanceLightStatusBars = true
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
