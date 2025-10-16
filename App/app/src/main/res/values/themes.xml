@@ -1,20 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Use NoActionBar theme so we can host our Toolbar -->
+<resources>
+    <!-- App theme for view-based layouts (MaterialComponents DayNight so attrs like colorBackground exist) -->
     <style name="Theme.MRSummariesApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/md_theme_primary</item>
-        <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
-        <item name="colorSecondary">@color/md_theme_secondary</item>
-        <item name="android:statusBarColor">@color/md_theme_primary</item>
-        <item name="android:windowBackground">@color/background</item>
+        <!-- primary / accent -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
 
-        <!-- Floating action button colors -->
-        <item name="materialButtonStyle">@style/Widget.MRSummariesApp.Button</item>
-    </style>
+        <!-- surface / background tokens used by layouts -->
+        <item name="colorBackground">@color/colorBackground</item>
+        <item name="colorOnBackground">@color/colorOnBackground</item>
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnSurface">@color/colorOnSurface</item>
 
-    <style name="Widget.MRSummariesApp.Button" parent="Widget.MaterialComponents.Button">
-        <item name="backgroundTint">@color/accent_1</item>
-        <item name="cornerRadius">12dp</item>
-        <item name="android:textColor">@color/md_theme_onPrimary</item>
+        <!-- optional: ripple / control -->
+        <item name="colorControlHighlight">?attr/colorPrimary</item>
     </style>
 </resources>

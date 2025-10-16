@@ -15,4 +15,6 @@
     <string name="folder_summary">Folder / Summary</string>
     <string name="tap_to_view">Tap to view</string>
     <string name="course">Course</string>
+    <string name="search_summaries">Search summaries</string>
+    <string name="search">Search</string>
 </resources>

@@ -1,64 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/home_root"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <androidx.cardview.widget.CardView
-        android:id="@+id/quick_note_card"
+    <!-- Root background follows Material theme background -->
+    <FrameLayout
+        android:id="@+id/home_root"
         android:layout_width="match_parent"
-        android:layout_height="140dp"
-        android:layout_marginBottom="12dp">
+        android:layout_height="match_parent"
+        android:background="?attr/colorBackground"
+        android:padding="16dp">
 
-        <TextView
-            android:layout_gravity="center"
-            android:layout_width="wrap_content"
+        <!-- Quick Note: MaterialCardView uses theme surface for its background -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/quickNoteCard"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/quick_note"
-            android:textStyle="bold"
-            android:textSize="24sp" />
-    </androidx.cardview.widget.CardView>
+            app:cardCornerRadius="@dimen/corner_radius"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="?attr/colorSurface"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="16dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/search_input"
-                android:hint="@string/search_hint"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
+            <TextView
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_height="32dp"
+                android:gravity="center"
+                android:text="@string/quick_note"
+                android:textStyle="bold"
+                android:textAppearance="?attr/textAppearanceHeadline6" />
+        </com.google.android.material.card.MaterialCardView>
 
-        <ImageButton
-            android:id="@+id/search_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_search"
-            android:contentDescription="@string/search_hint" />
-    </LinearLayout>
+        <!-- Search row (increased top margin to add more space from Quick Note) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="64dp"
+            android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/last_viewed_title"
-        android:layout_marginTop="12dp"
-        android:text="Last viewed summaries"
-        android:textStyle="bold"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+            <EditText
+                android:id="@+id/searchInput"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:autofillHints=""
+                android:background="@drawable/rounded_bg"
+                android:inputType="text"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center_vertical"
+                android:textStyle="bold"
+                android:hint="@string/search_summaries" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_last_viewed"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-</LinearLayout>
+            <Button
+                android:id="@+id/searchButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/rounded_bg"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:gravity="center"
+                android:textStyle="bold"
+                android:text="@string/search" />
+        </LinearLayout>
+    </FrameLayout>
+</layout>

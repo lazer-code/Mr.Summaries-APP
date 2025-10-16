@@ -1,16 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Modern colorful palette -->
-    <color name="md_theme_primary">#6750A4</color>
-    <color name="md_theme_onPrimary">#FFFFFF</color>
-    <color name="md_theme_secondary">#7D5260</color>
-    <color name="md_theme_tertiary">#006E1A</color>
+    <!-- Light theme colors -->
+    <color name="colorPrimary">#FB8C00</color>
+    <color name="colorOnPrimary">#FFFFFFFF</color>
 
-    <color name="accent_1">#FF6B6B</color>
-    <color name="accent_2">#FFD93D</color>
-    <color name="accent_3">#4CC9F0</color>
-    <color name="background">#FFFFFF</color>
-    <color name="surface">#F6F6F9</color>
-    <color name="onSurface">#1F1B24</color>
+    <color name="colorBackground">#F6F7F9</color>
+    <color name="colorOnBackground">#FF202124</color>
 
-    <color name="quick_note_bg">#FFEB3B</color>
+    <color name="colorSurface">#FFFFFFFF</color>
+    <color name="colorOnSurface">#FF202124</color>
+
+    <!-- small extras -->
+    <color name="colorAccent">#FB8C00</color>
 </resources>

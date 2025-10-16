@@ -5,15 +5,15 @@
     android:id="@+id/notes_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background">
+    android:background="@color/colorBackground">
 
     <!-- Top: toolbar -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/notes_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:backgroundTint="@color/md_theme_primary"
-        android:titleTextColor="@color/md_theme_onPrimary"
+        android:backgroundTint="@color/colorPrimary"
+        android:titleTextColor="@color/colorPrimary"
         app:title="Notes" />
 
     <LinearLayout
@@ -29,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Root"
-            android:textColor="@color/onSurface"
+            android:textColor="@color/colorOnSurface"
             android:textStyle="bold"
             android:textSize="16sp"
             android:ellipsize="end"
@@ -56,8 +56,8 @@
         app:layout_anchor="@id/rv_files"
         app:layout_anchorGravity="bottom|end"
         android:layout_margin="16dp"
-        android:backgroundTint="@color/accent_2"
-        android:textColor="@color/onSurface"/>
+        android:backgroundTint="@color/colorAccent"
+        android:textColor="@color/colorSurface"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_new_folder"
@@ -69,6 +69,6 @@
         android:layout_marginBottom="88dp"
         android:layout_marginEnd="16dp"
         android:contentDescription="New Folder"
-        android:tint="@color/onSurface"
-        android:backgroundTint="@color/accent_3"/>
+        android:tint="@color/colorSurface"
+        android:backgroundTint="@color/colorAccent"/>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

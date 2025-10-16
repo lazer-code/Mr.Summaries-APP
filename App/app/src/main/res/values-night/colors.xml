@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme colors -->
+    <color name="colorPrimary">#FFB74D</color>
+    <color name="colorOnPrimary">#FF000000</color>
+
+    <color name="colorBackground">#0F1112</color>
+    <color name="colorOnBackground">#FFECECEC</color>
+
+    <color name="colorSurface">#141617</color>
+    <color name="colorOnSurface">#FFECECEC</color>
+
+    <!-- small extras -->
+    <color name="colorAccent">#FFB74D</color>
+</resources>

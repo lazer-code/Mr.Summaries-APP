@@ -2,14 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.mrsummaries_app">
 
-    <!-- Required for all network (HTTP/HTTPS) requests -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
         android:label="MR.Summaries-APP"
-        android:theme="@style/Theme.MRSummariesApp">
+        android:theme="@style/Theme.MRSummariesApp">  <!-- <- changed here -->
         <activity android:name=".ui.note.NoteEditorActivity" />
         <activity android:name=".MainActivity"
             android:exported="true">
