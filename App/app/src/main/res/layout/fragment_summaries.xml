@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/summaries_root"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Current path / breadcrumb (used by SummariesFragment.binding.tvCurrentPath) -->
+    <TextView
+        android:id="@+id/tvCurrentPath"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Summaries"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:paddingBottom="8dp"
+        android:ellipsize="end"
+        android:maxLines="1" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/colorControlHighlight"
+        android:layout_marginBottom="8dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_summaries"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+</LinearLayout>

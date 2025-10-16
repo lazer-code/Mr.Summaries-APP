@@ -1,0 +1,29 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home"
+            android:title="@string/home"
+            android:icon="@drawable/ic_home" />
+        <item
+            android:id="@+id/nav_quick_note"
+            android:title="@string/quick_note"
+            android:icon="@drawable/ic_quick_note" />
+        <item
+            android:id="@+id/nav_summaries"
+            android:title="@string/summaries"
+            android:icon="@drawable/ic_summaries" />
+        <item
+            android:id="@+id/nav_notes"
+            android:title="@string/notes"
+            android:icon="@drawable/ic_note" />
+    </group>
+
+    <item android:title="">
+        <menu>
+            <item
+                android:id="@+id/nav_settings"
+                android:title="@string/settings"
+                android:icon="@drawable/ic_settings" />
+        </menu>
+    </item>
+</menu>

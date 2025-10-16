@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/notes_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- Top: toolbar -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/notes_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="@color/md_theme_primary"
+        android:titleTextColor="@color/md_theme_onPrimary"
+        app:title="Notes" />
+
+    <LinearLayout
+        android:id="@+id/notes_content"
+        android:orientation="vertical"
+        android:layout_marginTop="?attr/actionBarSize"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tv_current_folder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Root"
+            android:textColor="@color/onSurface"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_files"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="vertical" />
+    </LinearLayout>
+
+    <!-- Floating actions: anchor to RecyclerView (cannot anchor to parent CoordinatorLayout) -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fab_new_note"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="New Note"
+        android:icon="@drawable/ic_quick_note"
+        app:layout_anchor="@id/rv_files"
+        app:layout_anchorGravity="bottom|end"
+        android:layout_margin="16dp"
+        android:backgroundTint="@color/accent_2"
+        android:textColor="@color/onSurface"/>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_new_folder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/ic_folder"
+        app:layout_anchor="@id/rv_files"
+        app:layout_anchorGravity="bottom|end"
+        android:layout_marginBottom="88dp"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="New Folder"
+        android:tint="@color/onSurface"
+        android:backgroundTint="@color/accent_3"/>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

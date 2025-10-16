@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Three vertical dots "more" icon -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,6
+                          a2,2 0 1,0 0,0
+                          M12,12
+                          a2,2 0 1,0 0,0
+                          M12,18
+                          a2,2 0 1,0 0,0"/>
+</vector>
