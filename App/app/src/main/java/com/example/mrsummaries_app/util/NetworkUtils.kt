@@ -13,19 +13,28 @@ import java.net.Socket
 object NetworkUtils {
     /**
      * Permissive online check using NetworkCapabilities / transports.
+     *
+     * Wrapped in try/catch to avoid crashes on custom ROMs where ConnectivityManager calls
+     * might throw or behave unexpectedly (observed on some Lineage / vendor setups).
      */
     fun isOnline(context: Context): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
-        val nw = cm.activeNetwork ?: return false
-        val caps = cm.getNetworkCapabilities(nw) ?: return false
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+            val nw = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(nw) ?: return false
 
-        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return true
-        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return true
-        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) return true
-        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) return true
-        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return true
+            if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return true
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return true
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) return true
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) return true
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return true
 
-        return false
+            false
+        } catch (t: Throwable) {
+            // Don't crash the app on unexpected ROM behavior. Return false so callers can run
+            // the active probe (probeInternet) or allow user to "Try anyway".
+            false
+        }
     }
 
     /**

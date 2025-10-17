@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Make sure the app theme inherits from a MaterialComponents parent -->
+    <style name="Theme.MrSummaries_App" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Keep or add your theme customizations here -->
+        <item name="windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+        <!-- Example: ensure surface/background attributes exist -->
+        <!-- <item name="colorPrimary">@color/your_primary</item> -->
+        <!-- <item name="colorOnPrimary">@color/your_on_primary</item> -->
+    </style>
+</resources>
