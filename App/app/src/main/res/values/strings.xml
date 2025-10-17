@@ -21,4 +21,9 @@
     <string name="pencil">Pencil</string>
     <string name="eraser">Eraser</string>
     <string name="text">Text</string>
+    <string name="custom_color">Custom Color\n</string>
+    <string name="redo">Redo</string>
+    <string name="undo">Undo</string>
+    <string name="lasso">Lasso</string>
+    <string name="close">Close</string>
 </resources>
