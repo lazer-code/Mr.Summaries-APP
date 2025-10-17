@@ -168,8 +168,6 @@ class SummariesFragment : Fragment() {
                     allMdPaths = mdPaths.sorted()
                     if (allMdPaths.isEmpty()) {
                         Toast.makeText(requireContext(), "No summaries (.md) found under 'Summaries' in repo", Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(requireContext(), "Found ${allMdPaths.size} summaries", Toast.LENGTH_SHORT).show()
                     }
                     pathStack.clear()
                     showForCurrentPath()

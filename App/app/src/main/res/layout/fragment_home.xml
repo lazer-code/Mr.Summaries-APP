@@ -21,21 +21,12 @@
             android:clickable="true"
             android:focusable="true"
             android:padding="16dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:gravity="center"
-                android:text="@string/quick_note"
-                android:textStyle="bold"
-                android:textAppearance="?attr/textAppearanceHeadline6" />
         </com.google.android.material.card.MaterialCardView>
 
         <!-- Search row (increased top margin to add more space from Quick Note) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="64dp"
             android:orientation="horizontal">
 
             <EditText

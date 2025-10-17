@@ -48,7 +48,6 @@ class MainActivity : AppCompatActivity() {
         binding.navigationView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_home -> navController?.navigate(R.id.homeFragment)
-                R.id.nav_quick_note -> navController?.navigate(R.id.notesFragment)
                 R.id.nav_summaries -> navController?.navigate(R.id.summariesFragment)
                 R.id.nav_notes -> navController?.navigate(R.id.notesFragment)
                 R.id.nav_settings -> navController?.navigate(R.id.settingsFragment)

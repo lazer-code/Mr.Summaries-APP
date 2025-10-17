@@ -72,7 +72,7 @@ class NotesFragment : Fragment() {
 
     private fun showCurrentFolder() {
         val prefix = pathStack.joinToString(separator = "/").trim('/')
-        binding.tvCurrentFolder.text = if (prefix.isEmpty()) "Root" else prefix
+        binding.tvCurrentFolder.text = prefix.ifEmpty { "Root" }
         val nodes = repo.listFolderContents(prefix)
         adapter.submitList(nodes)
     }

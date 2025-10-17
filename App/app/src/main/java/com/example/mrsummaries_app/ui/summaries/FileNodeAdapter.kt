@@ -37,13 +37,9 @@ class FileNodeAdapter(
     inner class VH(view: View) : RecyclerView.ViewHolder(view) {
         private val icon: ImageView? = view.findViewById(R.id.icon_summary)
         private val title: TextView? = view.findViewById(R.id.tv_title)
-        private val course: TextView? = view.findViewById(R.id.tv_course)
-        private val desc: TextView? = view.findViewById(R.id.tv_description)
 
         fun bind(node: FileNode) {
             title?.text = node.name
-            course?.text = if (node.isFolder) "Folder" else "Summary"
-            desc?.text = if (node.isFolder) "Tap to open folder" else "Tap to view summary"
             icon?.setImageResource(if (node.isFolder) R.drawable.ic_folder else R.drawable.ic_summaries)
             itemView.setOnClickListener { onClick(node) }
         }

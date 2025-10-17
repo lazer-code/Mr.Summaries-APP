@@ -21,8 +21,6 @@ class SummariesAdapter(private val onClick: (GitHubContentItem) -> Unit) :
     inner class VH(private val binding: ItemSummaryBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: GitHubContentItem) {
             binding.tvTitle.text = item.name
-            binding.tvCourse.text = "Course"
-            binding.tvDescription.text = "Tap to open summary"
             binding.root.setOnClickListener { onClick(item) }
         }
     }
