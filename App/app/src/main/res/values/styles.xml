@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Make sure the app theme inherits from a MaterialComponents parent -->
-    <style name="Theme.MrSummaries_App" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Keep or add your theme customizations here -->
-        <item name="windowNoTitle">true</item>
-        <item name="windowActionBar">false</item>
-        <!-- Example: ensure surface/background attributes exist -->
-        <!-- <item name="colorPrimary">@color/your_primary</item> -->
-        <!-- <item name="colorOnPrimary">@color/your_on_primary</item> -->
+    <!-- Keep legacy styles here but DO NOT declare Theme.MrSummaries_App again.
+         The app theme is defined in values/themes.xml. -->
+
+    <!-- Example legacy / compatibility style (rename/remove as needed) -->
+    <style name="AppTheme.Legacy" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- legacy attributes -->
     </style>
+
+    <!-- If you previously had <style name="Theme.MrSummaries_App"> in this file,
+         remove it or rename it. Declaring the same style name in both
+         values/themes.xml and values/styles.xml causes the resource merger to fail. -->
 </resources>
